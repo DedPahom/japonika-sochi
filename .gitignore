@@ -25,3 +25,9 @@ vendor/
 
 # Uploads (пользовательские файлы)
 uploads/
+
+# Конфигурация с паролями
+src/config/database.php
+
+# Загруженные файлы
+src/public/uploads/

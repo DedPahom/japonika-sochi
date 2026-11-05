@@ -1,0 +1,17 @@
+# Включаем mod_rewrite
+RewriteEngine On
+
+# Запрещаем доступ к скрытым файлам
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Кодировка по умолчанию
+AddDefaultCharset UTF-8
+
+# Запрет доступа к конфигам
+<FilesMatch "\.(sql|md|log)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
