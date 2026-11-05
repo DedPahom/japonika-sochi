@@ -1,0 +1,27 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor folders
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+~*
+
+# Dependencies (будет позже)
+node_modules/
+vendor/
+
+# Environment
+.env
+.env.local
+
+# Uploads (пользовательские файлы)
+uploads/
