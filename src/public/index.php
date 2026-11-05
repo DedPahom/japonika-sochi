@@ -1,76 +1,80 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/config/config.php';
+require_once ROOT_PATH . '/Models/Product.php';
+require_once ROOT_PATH . '/Models/Category.php';
 
+// Получаем параметры
+$page = max(1, (int) ($_GET['page'] ?? 1));
+
+// Получаем товары
+$products = Product::getList($page);
+$totalProducts = Product::getTotalCount();
+$totalPages = ceil($totalProducts / PRODUCTS_PER_PAGE);
+
+// Получаем категории для меню
+$categories = Category::getAll();
+
+// Заголовок страницы
+$pageTitle = SITE_NAME . ' — Каталог';
+
+// Подключаем шаблоны
+require __DIR__ . '/templates/header.php';
 ?>
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Японика Сочи</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 50px auto;
-            padding: 20px;
-            background: #f5f5f5;
-        }
-        .status {
-            padding: 20px;
-            border-radius: 8px;
-            margin: 20px 0;
-        }
-        .status.ok {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        h1 {
-            color: #333;
-        }
-    </style>
-</head>
-<body>
-    <h1>🌸 Японика Сочи</h1>
-    <p>Сайт в разработке</p>
+
+<div class="catalog">
+    <h1 class="catalog__title">Каталог товаров</h1>
     
-    <h2>Проверка подключения к базе данных</h2>
-    
-    <?php
-    try {
-        if (testDBConnection()) {
-            echo '<div class="status ok">✅ Подключение к базе данных успешно!</div>';
-            
-            // Проверим, есть ли таблицы
-            $db = getDBConnection();
-            $tables = $db->query('SHOW TABLES')->fetchAll(PDO::FETCH_COLUMN);
-            
-            if (count($tables) > 0) {
-                echo '<p>Таблицы в базе данных:</p>';
-                echo '<ul>';
-                foreach ($tables as $table) {
-                    echo '<li>' . htmlspecialchars($table) . '</li>';
-                }
-                echo '</ul>';
-            } else {
-                echo '<p>⚠️ Таблиц пока нет. Запусти SQL-скрипт из database/schema.sql</p>';
-            }
-        }
-    } catch (PDOException $e) {
-        echo '<div class="status error">';
-        echo '<strong>❌ Ошибка подключения к базе данных</strong>';
-        echo '<p>' . htmlspecialchars($e->getMessage()) . '</p>';
-        echo '<p>Проверь настройки в config/database.php</p>';
-        echo '</div>';
-    }
-    ?>
-</body>
-</html>
+    <?php if (empty($products)): ?>
+        <p class="catalog__empty">Пока нет товаров. Загрузите через админ-панель.</p>
+    <?php else: ?>
+        <div class="products-grid">
+            <?php foreach ($products as $product): ?>
+                <?php
+                $inStock = Product::isInStock($product);
+                $imageUrl = !empty($product['main_image']) 
+                    ? '/uploads/products/' . htmlspecialchars($product['main_image'])
+                    : '/assets/images/no-image.jpg';
+                ?>
+                <div class="product-card <?= $inStock ? '' : 'product-card--out-of-stock' ?>">
+                    <a href="/product.php?id=<?= $product['id'] ?>" class="product-card__link">
+                        <div class="product-card__image">
+                            <img src="<?= $imageUrl ?>" 
+                                 alt="<?= htmlspecialchars($product['name']) ?>"
+                                 loading="lazy">
+                            <?php if (!$inStock): ?>
+                                <span class="product-card__badge">Под заказ</span>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <div class="product-card__info">
+                            <div class="product-card__article">
+                                Арт. <?= htmlspecialchars($product['article']) ?>
+                            </div>
+                            <h3 class="product-card__name">
+                                <?= htmlspecialchars($product['name']) ?>
+                            </h3>
+                            <div class="product-card__price">
+                                <?= number_format((float) $product['price'], 0, '.', ' ') ?> ₽
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        
+        <?php if ($totalPages > 1): ?>
+            <div class="pagination">
+                <?php for ($i = 1; $i <= $totalPages; $i++): ?>
+                    <a href="?page=<?= $i ?>" 
+                       class="pagination__link <?= $i === $page ? 'pagination__link--active' : '' ?>">
+                        <?= $i ?>
+                    </a>
+                <?php endfor; ?>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+</div>
+
+<?php require __DIR__ . '/templates/footer.php'; ?>
