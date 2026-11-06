@@ -1,8 +1,8 @@
 <?php
 declare(strict_types=1);
 
-require_once __DIR__ . '/../config/config.php';
-require_once ROOT_PATH . '/src/Models/Product.php';
+require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/Models/Product.php';
 
 $id = (int) ($_GET['id'] ?? 0);
 
@@ -34,26 +34,26 @@ require __DIR__ . '/templates/header.php';
 
 <div class="product">
     <div class="product__gallery">
-        <?php if (!empty($images)): ?>
-            <div class="product__main-image">
-                <img src="/uploads/products/<?= htmlspecialchars($images[0]['file_path']) ?>" 
-                     alt="<?= htmlspecialchars($product['name']) ?>">
-            </div>
-            <?php if (count($images) > 1): ?>
-                <div class="product__thumbnails">
-                    <?php foreach ($images as $img): ?>
-                        <img src="/uploads/products/thumbs/<?= htmlspecialchars($img['file_path']) ?>" 
-                             alt=""
-                             class="product__thumbnail">
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
-        <?php else: ?>
-            <div class="product__main-image product__main-image--no-image">
-                <span>Нет фото</span>
+    <?php if (!empty($images)): ?>
+        <div class="product__main-image">
+            <img src="/uploads/products/<?= htmlspecialchars($images[0]['file_path']) ?>" 
+                 alt="<?= htmlspecialchars($product['name']) ?>">
+        </div>
+        <?php if (count($images) > 1): ?>
+            <div class="product__thumbnails">
+                <?php foreach ($images as $img): ?>
+                    <img src="/uploads/products/thumbs/<?= htmlspecialchars($img['file_path']) ?>" 
+                         alt=""
+                         class="product__thumbnail">
+                <?php endforeach; ?>
             </div>
         <?php endif; ?>
-    </div>
+    <?php else: ?>
+        <div class="product__main-image">
+            <img src="/assets/images/no-image.jpg" alt="Нет фото">
+        </div>
+    <?php endif; ?>
+</div>
     
     <div class="product__info">
         <div class="product__article">

@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/config/config.php';
-require_once ROOT_PATH . '/Models/Product.php';
-require_once ROOT_PATH . '/Models/Category.php';
+require_once __DIR__ . '/Models/Product.php';
+require_once __DIR__ . '/Models/Category.php';
 
 // Получаем параметры
 $page = max(1, (int) ($_GET['page'] ?? 1));

@@ -7,7 +7,7 @@ const SITE_URL = 'https://japonika-sochi.ru';
 
 // Пути
 const ROOT_PATH = __DIR__ . '/..';
-const PUBLIC_PATH = ROOT_PATH . '/public';
+const PUBLIC_PATH = ROOT_PATH;
 const UPLOAD_PATH = PUBLIC_PATH . '/uploads';
 
 // Пагинация
