@@ -177,16 +177,18 @@ function applyCatalog(PDO $db, array $groups): array
                 $stats['updated']++;
             }
 
-            // The supplied JSON paths are the complete category set for this imported product.
+            // Paths create the full category tree, but the product is linked only to each path's leaf.
+            // This lets the UI distinguish products assigned directly here from descendant products.
             $deleteLinks->execute([$productId]);
             $categoryIds = [];
             foreach ($product['paths'] as $segments) {
                 $parentId = null;
+                $leafCategoryId = null;
                 foreach ($segments as $segment) {
-                    $categoryId = getOrCreateCategory($db, $segment, $parentId, $categoryCache);
-                    $categoryIds[$categoryId] = true;
-                    $parentId = $categoryId;
+                    $leafCategoryId = getOrCreateCategory($db, $segment, $parentId, $categoryCache);
+                    $parentId = $leafCategoryId;
                 }
+                if ($leafCategoryId !== null) $categoryIds[$leafCategoryId] = true;
             }
             foreach (array_keys($categoryIds) as $categoryId) {
                 $addLink->execute([$productId, $categoryId]);

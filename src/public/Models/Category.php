@@ -3,58 +3,92 @@ declare(strict_types=1);
 
 require_once ROOT_PATH . '/config/database.php';
 
-/**
- * Модель категории
- */
 class Category
 {
-    /**
-     * Получить все категории
-     */
     public static function getAll(): array
     {
-        $db = getDBConnection();
-        return $db->query("SELECT * FROM categories ORDER BY name")->fetchAll();
+        return getDBConnection()->query('SELECT * FROM categories ORDER BY name')->fetchAll();
     }
 
-    /**
-     * Получить категорию по slug
-     */
     public static function getBySlug(string $slug): ?array
     {
-        $db = getDBConnection();
-        
-        $stmt = $db->prepare("SELECT * FROM categories WHERE slug = :slug");
-        $stmt->bindValue(':slug', $slug);
-        $stmt->execute();
-        
-        $category = $stmt->fetch();
-        return $category ?: null;
+        $stmt = getDBConnection()->prepare('SELECT * FROM categories WHERE slug = ? LIMIT 1');
+        $stmt->execute([$slug]);
+        $row = $stmt->fetch();
+        return $row ?: null;
     }
 
-    /**
-     * Получить товары категории
-     */
-    public static function getProducts(int $categoryId, int $page = 1, int $perPage = PRODUCTS_PER_PAGE): array
+    public static function getRoots(): array
+    {
+        return getDBConnection()->query('SELECT * FROM categories WHERE parent_id IS NULL ORDER BY name')->fetchAll();
+    }
+
+    public static function getChildren(int $parentId): array
+    {
+        $stmt = getDBConnection()->prepare('SELECT * FROM categories WHERE parent_id = ? ORDER BY name');
+        $stmt->execute([$parentId]);
+        return $stmt->fetchAll();
+    }
+
+    /** Full breadcrumb, starting at root and ending at the selected category. */
+    public static function getPath(int $categoryId): array
     {
         $db = getDBConnection();
-        $offset = ($page - 1) * $perPage;
-        
-        $sql = "SELECT p.*, 
-                       COALESCE(pi.file_path, '') as main_image
+        $stmt = $db->prepare('SELECT * FROM categories WHERE id = ?');
+        $path = [];
+        $id = $categoryId;
+        for ($depth = 0; $id && $depth < 100; $depth++) {
+            $stmt->execute([$id]);
+            $row = $stmt->fetch();
+            if (!$row) break;
+            array_unshift($path, $row);
+            $id = $row['parent_id'] === null ? 0 : (int)$row['parent_id'];
+        }
+        return $path;
+    }
+
+    /** IDs of the selected category and optionally all descendants. */
+    public static function getScopeIds(int $categoryId, bool $includeDescendants): array
+    {
+        if (!$includeDescendants) return [$categoryId];
+        $rows = getDBConnection()->query('SELECT id, parent_id FROM categories')->fetchAll();
+        $children = [];
+        foreach ($rows as $row) $children[(int)($row['parent_id'] ?? 0)][] = (int)$row['id'];
+        $result = [];
+        $stack = [$categoryId];
+        while ($stack) {
+            $id = array_pop($stack);
+            if (isset($result[$id])) continue;
+            $result[$id] = true;
+            foreach ($children[$id] ?? [] as $childId) $stack[] = $childId;
+        }
+        return array_map('intval', array_keys($result));
+    }
+
+    public static function getProducts(int $categoryId, bool $includeDescendants, int $page = 1, int $perPage = PRODUCTS_PER_PAGE): array
+    {
+        $ids = self::getScopeIds($categoryId, $includeDescendants);
+        if (!$ids) return [];
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $offset = max(0, ($page - 1) * $perPage);
+        $sql = "SELECT p.*, COALESCE((SELECT pi.file_path FROM product_images pi WHERE pi.product_id=p.id ORDER BY pi.sort_order, pi.id LIMIT 1), '') AS main_image
                 FROM products p
-                JOIN product_categories pc ON p.id = pc.product_id
-                LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.sort_order = 0
-                WHERE pc.category_id = :category_id
-                ORDER BY p.created_at DESC
-                LIMIT :limit OFFSET :offset";
-        
-        $stmt = $db->prepare($sql);
-        $stmt->bindValue(':category_id', $categoryId, PDO::PARAM_INT);
-        $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
-        $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+                WHERE p.id IN (SELECT DISTINCT pc.product_id FROM product_categories pc WHERE pc.category_id IN ($marks))
+                ORDER BY p.created_at DESC LIMIT ? OFFSET ?";
+        $stmt = getDBConnection()->prepare($sql);
+        $params = array_merge($ids, [$perPage, $offset]);
+        foreach ($params as $i => $value) $stmt->bindValue($i + 1, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
         $stmt->execute();
-        
         return $stmt->fetchAll();
+    }
+
+    public static function countProducts(int $categoryId, bool $includeDescendants): int
+    {
+        $ids = self::getScopeIds($categoryId, $includeDescendants);
+        if (!$ids) return 0;
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = getDBConnection()->prepare("SELECT COUNT(DISTINCT pc.product_id) FROM product_categories pc WHERE pc.category_id IN ($marks)");
+        $stmt->execute($ids);
+        return (int)$stmt->fetchColumn();
     }
 }

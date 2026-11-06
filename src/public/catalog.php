@@ -5,169 +5,73 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/Models/Product.php';
 require_once __DIR__ . '/Models/Category.php';
 
-// Получаем параметры
-$page = max(1, (int) ($_GET['page'] ?? 1));
-$categorySlug = $_GET['category'] ?? '';
-$sort = $_GET['sort'] ?? 'new';
-$search = trim($_GET['search'] ?? '');
+$page = max(1, (int)($_GET['page'] ?? 1));
+$slug = trim((string)($_GET['category'] ?? ''));
+$scope = (($_GET['scope'] ?? 'all') === 'current') ? 'current' : 'all';
+$includeDescendants = $scope === 'all';
+$category = $slug !== '' ? Category::getBySlug($slug) : null;
+if ($slug !== '' && !$category) { http_response_code(404); }
+$categories = $category ? Category::getChildren((int)$category['id']) : Category::getRoots();
+$path = $category ? Category::getPath((int)$category['id']) : [];
 
-// Получаем категории для фильтра
-$categories = Category::getAll();
-
-// Фильтрация и сортировка
-$where = [];
-$params = [];
-
-if (!empty($categorySlug)) {
-    $category = Category::getBySlug($categorySlug);
-    if ($category) {
-        $where[] = "p.id IN (SELECT product_id FROM product_categories WHERE category_id = ?)";
-        $params[] = $category['id'];
-    }
+if ($category) {
+    $products = Category::getProducts((int)$category['id'], $includeDescendants, $page);
+    $totalProducts = Category::countProducts((int)$category['id'], $includeDescendants);
+    $pageTitle = $category['name'] . ' — Каталог — ' . SITE_NAME;
+} else {
+    $products = Product::getList($page);
+    $totalProducts = Product::getTotalCount();
+    $pageTitle = 'Каталог — ' . SITE_NAME;
 }
-
-if (!empty($search)) {
-    $where[] = "(p.name LIKE ? OR p.article LIKE ?)";
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-}
-
-$whereSql = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
-
-// Сортировка
-$orderSql = match($sort) {
-    'price_asc' => 'ORDER BY p.price ASC',
-    'price_desc' => 'ORDER BY p.price DESC',
-    'name' => 'ORDER BY p.name ASC',
-    default => 'ORDER BY p.created_at DESC'
-};
-
-// Получаем товары
-$db = getDBConnection();
-$offset = ($page - 1) * PRODUCTS_PER_PAGE;
-
-$sql = "SELECT p.*, 
-               COALESCE(pi.file_path, '') as main_image
-        FROM products p
-        LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.sort_order = 0
-        $whereSql
-        $orderSql
-        LIMIT " . PRODUCTS_PER_PAGE . " OFFSET $offset";
-
-$stmt = $db->prepare($sql);
-$stmt->execute($params);
-$products = $stmt->fetchAll();
-
-// Общее количество для пагинации
-$countSql = "SELECT COUNT(*) FROM products p $whereSql";
-$stmt = $db->prepare($countSql);
-$stmt->execute($params);
-$totalProducts = $stmt->fetchColumn();
-$totalPages = ceil($totalProducts / PRODUCTS_PER_PAGE);
-
-$pageTitle = 'Каталог — ' . SITE_NAME;
+$totalPages = (int)ceil($totalProducts / PRODUCTS_PER_PAGE);
+$baseQuery = $category ? 'category=' . rawurlencode($category['slug']) : '';
+$modeQuery = $category ? '&scope=' . ($includeDescendants ? 'current' : 'all') : '';
 require __DIR__ . '/templates/header.php';
 ?>
-
 <div class="catalog">
-    <h1 class="catalog__title">Каталог</h1>
-    
-    <!-- Фильтры -->
-    <div class="catalog__filters">
-        <form method="GET" class="filters-form">
-            <div class="filters-form__row">
-                <div class="filters-form__group">
-                    <label>Категория:</label>
-                    <select name="category">
-                        <option value="">Все категории</option>
-                        <?php foreach ($categories as $cat): ?>
-                            <option value="<?= htmlspecialchars($cat['slug']) ?>"
-                                    <?= $categorySlug === $cat['slug'] ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($cat['name']) ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <div class="filters-form__group">
-                    <label>Сортировка:</label>
-                    <select name="sort">
-                        <option value="new" <?= $sort === 'new' ? 'selected' : '' ?>>Сначала новые</option>
-                        <option value="price_asc" <?= $sort === 'price_asc' ? 'selected' : '' ?>>Цена ↑</option>
-                        <option value="price_desc" <?= $sort === 'price_desc' ? 'selected' : '' ?>>Цена ↓</option>
-                        <option value="name" <?= $sort === 'name' ? 'selected' : '' ?>>По названию</option>
-                    </select>
-                </div>
-                
-                <div class="filters-form__group">
-                    <label>Поиск:</label>
-                    <input type="text" name="search" value="<?= htmlspecialchars($search) ?>" 
-                           placeholder="Название или артикул...">
-                </div>
-                
-                <div class="filters-form__group">
-                    <button type="submit" class="btn btn--primary">Применить</button>
-                    <a href="/catalog.php" class="btn">Сбросить</a>
-                </div>
-            </div>
-        </form>
-    </div>
-    
-    <!-- Результаты -->
-    <?php if (empty($products)): ?>
-        <p class="catalog__empty">Товары не найдены.</p>
-    <?php else: ?>
-        <p class="catalog__count">Найдено: <?= $totalProducts ?></p>
-        
-        <div class="products-grid">
-            <?php foreach ($products as $product): ?>
-                <?php
-                $inStock = (int) $product['quantity'] > 0;
-                $imageUrl = !empty($product['main_image']) 
-                    ? '/uploads/products/' . htmlspecialchars($product['main_image'])
-                    : '/assets/images/no-image.jpg';
-                ?>
-                <div class="product-card <?= $inStock ? '' : 'product-card--out-of-stock' ?>">
-                    <a href="/product.php?id=<?= $product['id'] ?>" class="product-card__link">
-                        <div class="product-card__image">
-                            <img src="<?= $imageUrl ?>" 
-                                 alt="<?= htmlspecialchars($product['name']) ?>"
-                                 loading="lazy">
-                            <?php if (!$inStock): ?>
-                                <span class="product-card__badge">Под заказ</span>
-                            <?php endif; ?>
-                        </div>
-                        <div class="product-card__info">
-                            <div class="product-card__article">
-                                Арт. <?= htmlspecialchars($product['article']) ?>
-                            </div>
-                            <h3 class="product-card__name">
-                                <?= htmlspecialchars($product['name']) ?>
-                            </h3>
-                            <div class="product-card__price">
-                                <?= number_format((float) $product['price'], 0, '.', ' ') ?> ₽
-                            </div>
-                        </div>
-                    </a>
-                </div>
-            <?php endforeach; ?>
+    <h1 class="catalog__title"><?= $category ? htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8') : 'Каталог товаров' ?></h1>
+
+    <?php if ($path): ?><nav class="breadcrumbs" aria-label="Навигация">
+        <a href="/">Главная</a><span>›</span><a href="/catalog.php">Каталог</a>
+        <?php foreach ($path as $crumb): ?><span>›</span><?php if ((int)$crumb['id'] === (int)$category['id']): ?><span aria-current="page"><?= htmlspecialchars($crumb['name'], ENT_QUOTES, 'UTF-8') ?></span><?php else: ?><a href="/catalog.php?category=<?= rawurlencode($crumb['slug']) ?>"><?= htmlspecialchars($crumb['name'], ENT_QUOTES, 'UTF-8') ?></a><?php endif; ?><?php endforeach; ?>
+    </nav><?php endif; ?>
+
+    <?php if ($category): ?>
+        <?php if ($category['parent_id'] !== null):
+            $parent = null;
+            $parentPath = array_slice($path, 0, -1);
+            if ($parentPath) $parent = end($parentPath);
+        ?>
+            <a class="btn btn--small category-back" href="<?= $parent ? '/catalog.php?category=' . rawurlencode($parent['slug']) : '/catalog.php' ?>">← Назад</a>
+        <?php else: ?><a class="btn btn--small category-back" href="/catalog.php">← Все разделы</a><?php endif; ?>
+    <?php endif; ?>
+
+    <?php if ($categories): ?>
+        <nav class="category-nav" aria-label="Подразделы">
+            <?php foreach ($categories as $item): ?><a class="category-nav__link" href="/catalog.php?category=<?= rawurlencode($item['slug']) ?>"><?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?>
+        </nav>
+    <?php endif; ?>
+
+    <?php if ($category): ?>
+        <div class="catalog-scope" role="group" aria-label="Какие товары показывать">
+            <span>Показать:</span>
+            <a class="catalog-scope__link <?= !$includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=current">Только в этом разделе</a>
+            <a class="catalog-scope__link <?= $includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=all">Включая вложенные</a>
         </div>
-        
-        <?php if ($totalPages > 1): ?>
-            <div class="pagination">
-                <?php 
-                $queryParams = $_GET;
-                for ($i = 1; $i <= $totalPages; $i++): 
-                    $queryParams['page'] = $i;
-                ?>
-                    <a href="?<?= http_build_query($queryParams) ?>" 
-                       class="pagination__link <?= $i === $page ? 'pagination__link--active' : '' ?>">
-                        <?= $i ?>
-                    </a>
-                <?php endfor; ?>
+    <?php endif; ?>
+
+    <?php if (!$products): ?><p class="catalog__empty"><?= $category ? 'В этом режиме товаров нет.' : 'Пока нет товаров.' ?></p>
+    <?php else: ?><div class="products-grid">
+        <?php foreach ($products as $product): $inStock = Product::isInStock($product); ?>
+            <div class="product-card <?= $inStock ? '' : 'product-card--out-of-stock' ?>">
+                <a href="/product.php?id=<?= (int)$product['id'] ?>" class="product-card__link">
+                    <div class="product-card__image"><img src="<?= !empty($product['main_image']) ? '/uploads/products/' . rawurlencode($product['main_image']) : '/assets/images/no-image.jpg' ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" loading="lazy"><?php if (!$inStock): ?><span class="product-card__badge">Под заказ</span><?php endif; ?></div>
+                    <div class="product-card__info"><div class="product-card__article">Арт. <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div><h3 class="product-card__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h3><div class="product-card__price"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</div></div>
+                </a>
             </div>
-        <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+    <?php if ($totalPages > 1): ?><div class="pagination"><?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?<?= $baseQuery ?><?= $baseQuery ? '&amp;' : '' ?>page=<?= $i ?><?= $modeQuery ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?></div><?php endif; ?>
     <?php endif; ?>
 </div>
-
 <?php require __DIR__ . '/templates/footer.php'; ?>
