@@ -30,12 +30,49 @@ require __DIR__ . '/templates/header.php';
 <div class="product-page">
     <a class="product-back" href="/catalog.php">← Вернуться в каталог</a>
     <div class="product">
-        <div class="product__gallery">
+        <div class="product__gallery" data-product-gallery>
             <?php if ($images): ?>
-                <div class="product__main-image"><img src="/uploads/products/<?= rawurlencode(basename($images[0]['file_path'])) ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>"></div>
-                <?php if (count($images) > 1): ?><div class="product__thumbnails"><?php foreach ($images as $img): ?><img src="/uploads/products/thumbs/<?= rawurlencode(basename($img['file_path'])) ?>" alt="" class="product__thumbnail"><?php endforeach; ?></div><?php endif; ?>
-            <?php else: ?><div class="product__main-image"><img src="/assets/images/no-image.jpg" alt="Нет фото"></div><?php endif; ?>
+                <div class="gallery-main" aria-label="Фотографии товара">
+                    <?php if (count($images) > 1): ?>
+                        <button class="gallery-arrow gallery-arrow--prev" type="button" data-gallery-prev aria-label="Предыдущее изображение">‹</button>
+                    <?php endif; ?>
+                    <button class="gallery-main__open" type="button" data-gallery-open aria-label="Увеличить изображение">
+                        <img class="gallery-main__image" data-gallery-main src="/uploads/products/<?= rawurlencode(basename($images[0]['file_path'])) ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" fetchpriority="high">
+                        <span class="gallery-main__zoom" aria-hidden="true">⌕ Увеличить</span>
+                    </button>
+                    <?php if (count($images) > 1): ?>
+                        <button class="gallery-arrow gallery-arrow--next" type="button" data-gallery-next aria-label="Следующее изображение">›</button>
+                        <div class="gallery-main__counter" data-gallery-counter>1 / <?= count($images) ?></div>
+                    <?php endif; ?>
+                </div>
+                <?php if (count($images) > 1): ?>
+                    <div class="gallery-thumbs-wrap">
+                        <button class="gallery-thumbs-arrow" type="button" data-thumbs-prev aria-label="Прокрутить миниатюры влево">‹</button>
+                        <div class="gallery-thumbs" data-gallery-thumbs role="list" aria-label="Выбрать фотографию">
+                            <?php foreach ($images as $index => $img): $filename = basename((string)$img['file_path']); ?>
+                                <button class="gallery-thumb<?= $index === 0 ? ' is-active' : '' ?>" type="button" data-gallery-thumb data-index="<?= (int)$index ?>" data-full="/uploads/products/<?= rawurlencode($filename) ?>" data-alt="<?= htmlspecialchars($product['name'] . ' — фото ' . ($index + 1), ENT_QUOTES, 'UTF-8') ?>" aria-label="Изображение <?= $index + 1 ?> из <?= count($images) ?>" aria-current="<?= $index === 0 ? 'true' : 'false' ?>">
+                                    <img src="/uploads/products/thumbs/<?= rawurlencode($filename) ?>" alt="" loading="lazy">
+                                </button>
+                            <?php endforeach; ?>
+                        </div>
+                        <button class="gallery-thumbs-arrow" type="button" data-thumbs-next aria-label="Прокрутить миниатюры вправо">›</button>
+                    </div>
+                <?php endif; ?>
+
+                <dialog class="gallery-lightbox" data-gallery-dialog aria-label="Просмотр изображений товара">
+                    <div class="gallery-lightbox__bar">
+                        <span data-lightbox-counter>1 / <?= count($images) ?></span>
+                        <button type="button" class="gallery-lightbox__close" data-lightbox-close aria-label="Закрыть просмотр">×</button>
+                    </div>
+                    <?php if (count($images) > 1): ?><button type="button" class="gallery-lightbox__arrow gallery-lightbox__arrow--prev" data-lightbox-prev aria-label="Предыдущее изображение">‹</button><?php endif; ?>
+                    <img class="gallery-lightbox__image" data-lightbox-image src="/uploads/products/<?= rawurlencode(basename($images[0]['file_path'])) ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>">
+                    <?php if (count($images) > 1): ?><button type="button" class="gallery-lightbox__arrow gallery-lightbox__arrow--next" data-lightbox-next aria-label="Следующее изображение">›</button><?php endif; ?>
+                </dialog>
+            <?php else: ?>
+                <div class="product__main-image"><img src="/assets/images/no-image.jpg" alt="Нет фото"></div>
+            <?php endif; ?>
         </div>
+
         <div class="product__info">
             <div class="product__article">Артикул: <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div>
             <h1 class="product__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h1>
@@ -52,4 +89,5 @@ require __DIR__ . '/templates/header.php';
         </div>
     </div>
 </div>
+<?php if ($images): ?><script src="/assets/js/product-gallery.js" defer></script><?php endif; ?>
 <?php require __DIR__ . '/templates/footer.php'; ?>

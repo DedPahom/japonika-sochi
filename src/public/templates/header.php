@@ -12,13 +12,19 @@ $headerCart = Cart::summary();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars((string)($pageTitle ?? SITE_NAME), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></title>
+    <link rel="icon" href="/assets/images/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="64x64" href="/assets/images/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/images/apple-touch-icon.png">
     <link rel="stylesheet" href="/assets/css/style.css">
 </head>
 <body>
 <header class="header">
     <div class="container">
         <div class="header__inner">
-            <a href="/" class="logo">🌸 <?= htmlspecialchars(SITE_NAME, ENT_QUOTES, 'UTF-8') ?></a>
+            <a href="/" class="logo" aria-label="<?= htmlspecialchars(SITE_NAME, ENT_QUOTES, 'UTF-8') ?> — главная">
+                <img class="logo__image" src="/assets/images/logo.png" alt="Логотип Японика" width="46" height="46">
+                <span><?= htmlspecialchars(SITE_NAME, ENT_QUOTES, 'UTF-8') ?></span>
+            </a>
             <nav class="nav" aria-label="Основная навигация">
                 <a href="/" class="nav__link">Главная</a>
                 <a href="/catalog.php" class="nav__link">Каталог</a>

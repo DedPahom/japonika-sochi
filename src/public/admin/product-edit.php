@@ -27,6 +27,7 @@ $csrf = $_SESSION['product_edit_csrf'];
 $error = '';
 $success = '';
 $uploadedFiles = [];
+$deletedImagePaths = [];
 
 function productEditH($value): string
 {
@@ -140,6 +141,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
+                // Remove only image rows belonging to this product; actual files are unlinked after commit.
+                $deleteIdsRaw = $_POST['delete_images'] ?? [];
+                if (!is_array($deleteIdsRaw)) $deleteIdsRaw = [];
+                $deleteIds = [];
+                foreach ($deleteIdsRaw as $rawImageId) {
+                    $imageId = filter_var($rawImageId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                    if ($imageId) $deleteIds[(int)$imageId] = (int)$imageId;
+                }
+                $deleteIds = array_values($deleteIds);
+                if ($deleteIds) {
+                    $marks = implode(',', array_fill(0, count($deleteIds), '?'));
+                    $stmt = $db->prepare("SELECT id, file_path FROM product_images WHERE product_id = ? AND id IN ($marks)");
+                    $stmt->execute(array_merge([$id], $deleteIds));
+                    $rowsToDelete = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    if (count($rowsToDelete) !== count($deleteIds)) {
+                        throw new RuntimeException('Некоторые выбранные изображения не принадлежат этому товару. Обновите страницу и повторите.');
+                    }
+                    foreach ($rowsToDelete as $imageRow) $deletedImagePaths[] = (string)$imageRow['file_path'];
+                    $stmt = $db->prepare("DELETE FROM product_images WHERE product_id = ? AND id IN ($marks)");
+                    $stmt->execute(array_merge([$id], $deleteIds));
+                }
+
                 if ($newImageName !== null) {
                     $stmt = $db->prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM product_images WHERE product_id = ?');
                     $stmt->execute([$id]);
@@ -147,8 +170,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmt = $db->prepare('INSERT INTO product_images (product_id, file_path, sort_order) VALUES (?, ?, ?)');
                     $stmt->execute([$id, $newImageName, $sortOrder]);
                 }
+
+                // Set the selected image as primary. If the previous primary was deleted,
+                // make the first remaining image the primary automatically.
+                $mainImageId = filter_var($_POST['main_image_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                $imageRowsStmt = $db->prepare('SELECT id, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order, id');
+                $imageRowsStmt->execute([$id]);
+                $remainingImages = $imageRowsStmt->fetchAll(PDO::FETCH_ASSOC);
+                $remainingIds = array_map(static fn($row) => (int)$row['id'], $remainingImages);
+                // If the previously selected main image is also marked for deletion,
+                // choose the first remaining photo below instead of rejecting the form.
+                if ($mainImageId && in_array((int)$mainImageId, $deleteIds, true)) $mainImageId = null;
+                if ($mainImageId && !in_array((int)$mainImageId, $remainingIds, true)) {
+                    throw new RuntimeException('Выберите главное изображение из оставшихся фотографий.');
+                }
+                if ($remainingImages) {
+                    if (!$mainImageId) {
+                        foreach ($remainingImages as $row) {
+                            if ((int)$row['sort_order'] === 0) { $mainImageId = (int)$row['id']; break; }
+                        }
+                    }
+                    if (!$mainImageId) $mainImageId = $remainingIds[0];
+                    $orderedIds = array_values(array_unique(array_merge([(int)$mainImageId], $remainingIds)));
+                    $sortStmt = $db->prepare('UPDATE product_images SET sort_order = ? WHERE id = ? AND product_id = ?');
+                    foreach ($orderedIds as $position => $imageId) $sortStmt->execute([$position, $imageId, $id]);
+                }
+
                 $db->commit();
-                $success = $newImageName !== null ? 'Товар и изображение сохранены.' : 'Товар сохранён.';
+                // Physical image files are removed only after DB commit. Ensure they are not referenced elsewhere.
+                try {
+                    $uploadRoot = realpath(UPLOAD_PATH . '/products');
+                    if ($uploadRoot !== false) {
+                        foreach (array_unique($deletedImagePaths) as $relativePath) {
+                            $filename = basename($relativePath);
+                            if ($filename === '' || $filename === '.' || $filename === '..') continue;
+                            $refCheck = $db->prepare('SELECT COUNT(*) FROM product_images WHERE file_path = ?');
+                            $refCheck->execute([$relativePath]);
+                            if ((int)$refCheck->fetchColumn() > 0) continue;
+                            foreach ([$uploadRoot, $uploadRoot . DIRECTORY_SEPARATOR . 'thumbs'] as $dir) {
+                                $realDir = realpath($dir);
+                                if ($realDir === false) continue;
+                                $filePath = $realDir . DIRECTORY_SEPARATOR . $filename;
+                                if (is_file($filePath) && !is_link($filePath) && !@unlink($filePath)) {
+                                    error_log('Could not unlink deleted product image: ' . $filePath);
+                                }
+                            }
+                        }
+                    }
+                } catch (Throwable $cleanupError) {
+                    // DB changes are already committed; file cleanup failure should not claim the save failed.
+                    error_log('Product image cleanup failed: ' . $cleanupError->getMessage());
+                }
+                $deletedCount = count($deletedImagePaths);
+                $successParts = ['Товар сохранён.'];
+                if ($newImageName !== null) $successParts[] = 'Новое изображение добавлено.';
+                if ($deletedCount > 0) $successParts[] = 'Удалено изображений: ' . $deletedCount . '.';
+                $success = implode(' ', $successParts);
 
                 $stmt = $db->prepare('SELECT * FROM products WHERE id = ?');
                 $stmt->execute([$id]);
@@ -184,7 +261,7 @@ require __DIR__ . '/../templates/header.php';
     <?php if ($error): ?><div class="alert alert--error"><?= productEditH($error) ?></div><?php endif; ?>
     <?php if ($success): ?><div class="alert alert--success"><?= productEditH($success) ?></div><?php endif; ?>
 
-    <form method="POST" enctype="multipart/form-data" class="form form--admin">
+    <form method="POST" enctype="multipart/form-data" class="form form--admin" onsubmit="return !this.querySelector('.product-images__delete input:checked') || confirm('Удалить отмеченные изображения?');">
         <input type="hidden" name="csrf" value="<?= productEditH($csrf) ?>">
         <input type="hidden" name="id" value="<?= (int)$id ?>">
         <input type="hidden" name="MAX_FILE_SIZE" value="8388608">
@@ -231,12 +308,21 @@ require __DIR__ . '/../templates/header.php';
             <div class="form__group">
                 <label>Текущие изображения</label>
                 <div class="product-images">
-                    <?php foreach ($images as $img): $file = basename((string)$img['file_path']); ?>
-                        <div class="product-images__item">
-                            <img src="/uploads/products/thumbs/<?= rawurlencode($file) ?>" alt="">
+                    <?php foreach ($images as $img): $file = basename((string)$img['file_path']); $isMain = (int)$img['sort_order'] === 0; ?>
+                        <div class="product-images__item <?= $isMain ? 'is-main' : '' ?>">
+                            <img src="/uploads/products/thumbs/<?= rawurlencode($file) ?>" alt="" loading="lazy">
+                            <label class="product-images__choice">
+                                <input type="radio" name="main_image_id" value="<?= (int)$img['id'] ?>" <?= $isMain ? 'checked' : '' ?>>
+                                <span><?= $isMain ? 'Главная' : 'Сделать главной' ?></span>
+                            </label>
+                            <label class="product-images__delete">
+                                <input type="checkbox" name="delete_images[]" value="<?= (int)$img['id'] ?>">
+                                <span>Удалить фото</span>
+                            </label>
                         </div>
                     <?php endforeach; ?>
                 </div>
+                <p class="form__hint">Выберите основное фото. Чтобы удалить фото, отметьте «Удалить фото» и нажмите «Сохранить».</p>
             </div>
         <?php endif; ?>
         <div class="form__group">
@@ -251,8 +337,13 @@ require __DIR__ . '/../templates/header.php';
 <style>
 .form__group { margin-bottom: 20px; }
 .form__group label { display: block; margin-bottom: 5px; font-weight: 500; }
-.product-images { display: flex; gap: 10px; flex-wrap: wrap; }
-.product-images__item { width: 100px; height: 100px; border-radius: 8px; overflow: hidden; border: 2px solid #ddd; }
-.product-images__item img { width: 100%; height: 100%; object-fit: cover; }
+.product-images { display: flex; gap: 12px; flex-wrap: wrap; }
+.product-images__item { display: flex; width: 138px; flex-direction: column; gap: 7px; padding: 7px; background: #fff; border: 1px solid #e5dce0; border-radius: 9px; }
+.product-images__item.is-main { border: 2px solid #e91e63; box-shadow: 0 0 0 2px rgba(233,30,99,.1); }
+.product-images__item > img { width: 100%; height: 112px; object-fit: cover; border-radius: 5px; }
+.product-images__choice, .product-images__delete { display: flex !important; align-items: center; gap: 6px; margin: 0 !important; font-size: 12px !important; line-height: 1.3; cursor: pointer; }
+.product-images__choice input, .product-images__delete input { flex: 0 0 auto; margin: 0; }
+.product-images__delete { color: #a22; }
+.form__hint { margin: 8px 0 0; color: #777; font-size: 13px; }
 </style>
 <?php require __DIR__ . '/../templates/footer.php'; ?>
