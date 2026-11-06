@@ -47,7 +47,7 @@ require __DIR__ . '/templates/header.php';
                         <label class="visually-hidden" for="quick-qty-<?= (int)$product['id'] ?>">Количество</label>
                         <input id="quick-qty-<?= (int)$product['id'] ?>" class="quick-buy__quantity" type="number" min="1" max="999" value="1" inputmode="numeric">
                         <button type="button" class="btn btn--primary quick-buy__button" data-cart-add="<?= (int)$product['id'] ?>" data-cart-csrf="<?= htmlspecialchars($cartCsrf, ENT_QUOTES, 'UTF-8') ?>">В корзину</button>
-                        <?php if ($isAdmin): ?><a class="product-card__edit" href="/admin/product-edit.php?id=<?= (int)$product['id'] ?>" aria-label="Редактировать товар" title="Редактировать товар">✏️ Редактировать</a><?php endif; ?>
+                        <?php if ($isAdmin): ?><a class="product-card__edit" href="/admin/product-edit.php?id=<?= (int)$product['id'] ?>" aria-label="Редактировать товар" title="Редактировать товар">✏️</a><?php endif; ?>
                     </div>
                 </article>
             <?php endforeach; ?>
