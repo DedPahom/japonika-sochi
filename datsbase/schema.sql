@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS `components` (
 -- Таблица: Товары
 CREATE TABLE IF NOT EXISTS `products` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `onec_id` CHAR(36)
+    CHARACTER SET ascii
+    COLLATE ascii_general_ci
+    NULL,
   `article` VARCHAR(100) NOT NULL UNIQUE,
   `name` VARCHAR(500) NOT NULL,
   `description` TEXT NULL,
@@ -33,6 +37,7 @@ CREATE TABLE IF NOT EXISTS `products` (
   `no_discount` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `uq_products_onec_id` (`onec_id`),
   INDEX `idx_article` (`article`),
   INDEX `idx_name` (`name`),
   INDEX `idx_quantity` (`quantity`)
