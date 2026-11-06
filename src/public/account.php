@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 session_start();
 
+require_once __DIR__ . '/Models/UserAccess.php';
+UserAccess::clearBlockedSession();
+
 // Проверяем авторизацию
 if (!isset($_SESSION['user_id'])) {
     header('Location: /login.php');

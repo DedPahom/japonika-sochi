@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/Models/Cart.php';
+require_once __DIR__ . '/Models/UserAccess.php';
+UserAccess::clearBlockedSession();
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');

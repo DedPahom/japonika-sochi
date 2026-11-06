@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `discount` INT NOT NULL DEFAULT 0 COMMENT 'Персональная скидка %',
   `discount_end_date` DATETIME NULL,
   `is_admin` TINYINT(1) NOT NULL DEFAULT 0,
+  `is_blocked` TINYINT(1) NOT NULL DEFAULT 0,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_phone` (`phone`)

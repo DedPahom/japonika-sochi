@@ -5,6 +5,10 @@ if (session_status() === PHP_SESSION_NONE) session_start();
 if (!defined('SITE_NAME')) require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../Models/Cart.php';
 $headerCart = Cart::summary();
+$requestPath = parse_url((string)($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH) ?: '/';
+$searchValue = $requestPath === '/search.php' ? (string)($_GET['q'] ?? '') : '';
+$accountHref = isset($_SESSION['admin_id']) ? '/admin/index.php' : (isset($_SESSION['user_id']) ? '/account.php' : '/login.php');
+$accountLabel = isset($_SESSION['admin_id']) ? 'Админка' : 'Кабинет';
 ?>
 <!DOCTYPE html>
 <html lang="ru">
@@ -42,6 +46,11 @@ $headerCart = Cart::summary();
                 <?php endif; ?>
             </nav>
         </div>
+        <form class="mobile-search" action="/search.php" method="get" role="search">
+            <label class="visually-hidden" for="mobile-search-query">Поиск товаров</label>
+            <input id="mobile-search-query" type="search" name="q" value="<?= htmlspecialchars($searchValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Найти товар или артикул" enterkeyhint="search">
+            <button type="submit" aria-label="Искать"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg></button>
+        </form>
     </div>
 </header>
 <main class="main"><div class="container">

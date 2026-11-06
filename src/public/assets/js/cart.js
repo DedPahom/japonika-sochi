@@ -27,7 +27,7 @@ document.addEventListener('click', async function (event) {
         const result = await response.json();
         if (!response.ok || !result.ok) throw new Error(result.message || 'Не удалось добавить товар.');
 
-        document.querySelectorAll('#header-cart-count').forEach(el => el.textContent = result.count);
+        document.querySelectorAll('#header-cart-count, [data-cart-count]').forEach(el => el.textContent = result.count);
         document.querySelectorAll('#header-cart-total').forEach(el => el.textContent = result.formatted_total);
         button.textContent = 'Добавлено ✓';
         window.setTimeout(() => { button.textContent = originalText; button.disabled = false; }, 1300);
