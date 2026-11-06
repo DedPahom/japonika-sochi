@@ -20,7 +20,7 @@ class Product
                        COALESCE(pi.file_path, '') as main_image
                 FROM products p
                 LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.sort_order = 0
-                ORDER BY p.created_at DESC
+                ORDER BY CASE WHEN p.quantity > 0 THEN 0 ELSE 1 END, p.created_at DESC, p.id DESC
                 LIMIT :limit OFFSET :offset";
         
         $stmt = $db->prepare($sql);

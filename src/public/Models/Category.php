@@ -74,7 +74,7 @@ class Category
         $sql = "SELECT p.*, COALESCE((SELECT pi.file_path FROM product_images pi WHERE pi.product_id=p.id ORDER BY pi.sort_order, pi.id LIMIT 1), '') AS main_image
                 FROM products p
                 WHERE p.id IN (SELECT DISTINCT pc.product_id FROM product_categories pc WHERE pc.category_id IN ($marks))
-                ORDER BY p.created_at DESC LIMIT ? OFFSET ?";
+                ORDER BY CASE WHEN p.quantity > 0 THEN 0 ELSE 1 END, p.created_at DESC, p.id DESC LIMIT ? OFFSET ?";
         $stmt = getDBConnection()->prepare($sql);
         $params = array_merge($ids, [$perPage, $offset]);
         foreach ($params as $i => $value) $stmt->bindValue($i + 1, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);

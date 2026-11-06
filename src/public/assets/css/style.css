@@ -1341,3 +1341,119 @@ img {
     border: 0;
     box-shadow: none;
 }
+
+/* Append to src/public/assets/css/style.css.
+   Brand palette: natural leafy greens inspired by the Японика logo. */
+:root {
+    --brand-green: #6f922b;
+    --brand-green-hover: #587722;
+    --brand-green-soft: #f1f6e7;
+    --brand-green-border: #d6e3bb;
+    --brand-green-pale: #e8f0d7;
+    --brand-ink: #344022;
+}
+
+a { color: var(--brand-green); }
+a:hover { color: var(--brand-green-hover); }
+.logo, .header .logo { color: var(--brand-green); }
+.nav__link:hover { color: var(--brand-green); }
+.product-card__price,
+.product__price-value,
+.nav__cart-total,
+.cart-item__price,
+.cart-item__line-total,
+.cart-summary__total strong { color: var(--brand-green); }
+
+.btn--primary,
+.pagination__link--active {
+    background: var(--brand-green);
+    border-color: var(--brand-green);
+    color: #fff;
+}
+.btn--primary:hover,
+.pagination__link--active:hover {
+    background: var(--brand-green-hover);
+    border-color: var(--brand-green-hover);
+    color: #fff;
+}
+.product__thumbnail:hover { border-color: var(--brand-green); }
+.product__stock-status--out {
+    color: #63733f;
+    background: var(--brand-green-soft);
+}
+.nav__cart-count { background: var(--brand-green); }
+
+/* Category navigation and selected controls: pale leafy green instead of pink. */
+.catalog { --catalog-accent: var(--brand-green); --catalog-soft: var(--brand-green-soft); }
+.category-nav { scrollbar-color: #cad9a9 transparent; }
+.category-nav::-webkit-scrollbar-thumb { background: #cad9a9; }
+.category-nav__link::before { color: var(--brand-green); background: var(--brand-green-pale); }
+.category-nav__link::after { color: #8b9b6b; }
+.category-nav__link:hover {
+    background: linear-gradient(135deg, #fff 0%, #f4f8eb 100%);
+    border-color: #c8d8a6;
+    box-shadow: 0 8px 22px rgba(72, 100, 37, .11);
+}
+.category-nav__link:hover::after { color: var(--brand-green); }
+.catalog-scope__link.is-active {
+    color: var(--brand-ink);
+    border-color: var(--brand-green-border);
+}
+.catalog-scope__link:hover { color: var(--brand-green); }
+.category-back:hover,
+.product-back:hover {
+    color: var(--brand-green-hover);
+    background: var(--brand-green-soft);
+    border-color: #c8d8a6;
+}
+.breadcrumbs a:hover { color: var(--brand-green); }
+
+/* Give zero-stock / preorder items a softer appearance; SQL ordering puts them after
+   available products on every catalogue page. Keep their button readable and usable. */
+.product-card--out-of-stock {
+    opacity: .46;
+    filter: saturate(.78);
+    box-shadow: 0 1px 3px rgba(0,0,0,.07);
+}
+.product-card--out-of-stock:hover {
+    opacity: .70;
+    box-shadow: 0 4px 10px rgba(0,0,0,.10);
+}
+.product-card--out-of-stock .product-card__image img {
+    filter: saturate(.72);
+}
+.product-card--out-of-stock .product-card__badge {
+    background: #75845b;
+    color: #fff;
+}
+.product-card--out-of-stock .quick-buy__button {
+    opacity: 1;
+    filter: none;
+}
+
+/* Replace remaining common rose shades in the catalog/admin UI with the green palette. */
+.badge--warning { background: #75845b; }
+.product-card__edit:hover,
+.admin-product-edit:hover {
+    color: var(--brand-green-hover);
+    background: var(--brand-green-soft);
+    border-color: #c8d8a6;
+}
+.gallery-thumb.is-active { border-color: var(--brand-green); box-shadow: 0 0 0 2px rgba(111,146,43,.12); }
+.gallery-thumb:hover { border-color: #a5bc76; }
+.gallery-arrow:hover { color: var(--brand-green); }
+.gallery-thumbs-arrow:hover { color: var(--brand-green); border-color: #a5bc76; }
+.gallery-main__open:focus-visible,
+.gallery-thumb:focus-visible,
+.gallery-arrow:focus-visible,
+.gallery-thumbs-arrow:focus-visible,
+.gallery-lightbox button:focus-visible,
+.product-back:focus-visible,
+.category-back:focus-visible {
+    outline-color: rgba(111,146,43,.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .product-card--out-of-stock,
+    .product-card--out-of-stock:hover { transition: none; }
+}
