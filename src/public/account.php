@@ -23,7 +23,7 @@ $user = $stmt->fetch();
 $stmt = $db->prepare("
     SELECT o.*, 
            COUNT(oi.id) as items_count,
-           SUM(oi.quantity * oi.price) as total_sum
+           SUM(oi.quantity * oi.price_final) as total_sum
     FROM orders o
     LEFT JOIN order_items oi ON o.id = oi.order_id
     WHERE o.user_id = ?
