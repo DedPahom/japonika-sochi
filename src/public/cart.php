@@ -43,7 +43,7 @@ require __DIR__ . '/templates/header.php';
                         <div class="cart-item__details">
                             <div class="product-card__article">Арт. <?= htmlspecialchars($item['article'], ENT_QUOTES, 'UTF-8') ?></div>
                             <a class="cart-item__name" href="/product.php?id=<?= (int)$item['product_id'] ?>"><?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?></a>
-                            <div class="cart-item__price"><?= number_format((float)$item['price'], 0, '.', ' ') ?> ₽ / шт.</div>
+                            <div class="cart-item__price"><?= number_format((float)$item['final_price'], 0, '.', ' ') ?> ₽<?php if ((int)$item['applied_discount'] > 0): ?> <del class="product-card__price-old"><?= number_format((float)$item['price'], 0, '.', ' ') ?> ₽</del> <span class="price-discount">(<?= (int)$item['applied_discount'] ?>%)</span><?php endif; ?> / шт.</div>
                         </div>
                         <div class="cart-item__controls">
                             <form method="post" action="/cart.php" class="cart-quantity-form">
@@ -61,7 +61,7 @@ require __DIR__ . '/templates/header.php';
                                 <button type="submit" class="cart-remove">Удалить</button>
                             </form>
                         </div>
-                        <div class="cart-item__line-total"><?= number_format((float)$item['price'] * (int)$item['quantity'], 0, '.', ' ') ?> ₽</div>
+                        <div class="cart-item__line-total"><?= number_format((float)$item['final_price'] * (int)$item['quantity'], 0, '.', ' ') ?> ₽</div>
                     </article>
                 <?php endforeach; ?>
             </div>
@@ -69,7 +69,7 @@ require __DIR__ . '/templates/header.php';
                 <h2>Итого</h2>
                 <div class="cart-summary__row"><span>Товаров</span><strong><?= (int)$summary['count'] ?> шт.</strong></div>
                 <div class="cart-summary__total"><span>Сумма</span><strong><?= number_format((float)$summary['total'], 0, '.', ' ') ?> ₽</strong></div>
-                <p class="cart-summary__note">Стоимость рассчитана по текущим ценам товаров.</p>
+                <p class="cart-summary__note"><?= !empty($summary['discount']) ? 'Учтена ваша персональная скидка ' . (int)$summary['discount'] . '%; у товаров с запретом скидки она не применяется.' : 'Стоимость рассчитана по текущим ценам товаров.' ?></p>
             </aside>
         </div>
     <?php endif; ?>

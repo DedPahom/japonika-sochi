@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once ROOT_PATH . '/config/database.php';
+require_once __DIR__ . '/CustomerPricing.php';
 
 /** Session-based cart backed by the existing carts/cart_items tables. */
 class Cart
@@ -89,7 +90,7 @@ class Cart
         $db = getDBConnection();
         $cartId = self::cartId($db, false);
         if ($cartId === null) return [];
-        $stmt = $db->prepare("SELECT ci.product_id, ci.quantity, p.article, p.name, p.price, p.quantity AS stock, COALESCE((SELECT pi.file_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1), '') AS main_image
+        $stmt = $db->prepare("SELECT ci.product_id, ci.quantity, p.article, p.name, p.price, p.no_discount, p.quantity AS stock, COALESCE((SELECT pi.file_path FROM product_images pi WHERE pi.product_id = p.id ORDER BY pi.sort_order, pi.id LIMIT 1), '') AS main_image
             FROM cart_items ci JOIN products p ON p.id = ci.product_id WHERE ci.cart_id = ? ORDER BY ci.created_at DESC");
         $stmt->execute([$cartId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -100,10 +101,15 @@ class Cart
         $items = self::getItems();
         $count = 0;
         $total = 0.0;
-        foreach ($items as $item) {
+        $discount = CustomerPricing::currentDiscount();
+        foreach ($items as &$item) {
             $count += (int)$item['quantity'];
-            $total += (float)$item['price'] * (int)$item['quantity'];
+            $basePrice = (float)$item['price'];
+            $item['final_price'] = !empty($item['no_discount']) ? $basePrice : floor($basePrice * (1 - $discount / 100));
+            $item['applied_discount'] = (!empty($item['no_discount']) || $item['final_price'] >= $basePrice) ? 0 : $discount;
+            $total += (float)$item['final_price'] * (int)$item['quantity'];
         }
-        return ['items' => $items, 'count' => $count, 'total' => $total];
+        unset($item);
+        return ['items' => $items, 'count' => $count, 'total' => $total, 'discount' => $discount];
     }
 }

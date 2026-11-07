@@ -1756,3 +1756,68 @@ a:hover { color: var(--brand-green-hover); }
 .admin-users__delete { color: #8b3d31; background: #fff; border: 1px solid #e4c6be; }
 .admin-users__delete:hover { background: #fff4f1; }
 @media(max-width:760px){.admin-users__duplicate-row{align-items:flex-start;flex-direction:column}.admin-users__edit-grid{grid-template-columns:1fr}.admin-users__table{min-width:1050px}.admin-users__actions{min-width:260px}}
+
+
+/* Append to src/public/assets/css/style.css for the redesigned admin dashboard. */
+.admin-dashboard__overview {
+    display: grid;
+    grid-template-columns: minmax(230px, 0.85fr) minmax(320px, 1.4fr);
+    gap: 28px;
+    margin-top: 20px;
+    padding: 22px 0;
+}
+.admin-dashboard__controls { padding-right: 26px; border-right: 1px solid #dce3d2; }
+.admin-dashboard__controls h2, .admin-dashboard__statistics h2 { margin: 0 0 16px; color: #364329; font-size: 20px; }
+.admin-dashboard__group { margin: 0 0 18px; }
+.admin-dashboard__group h3 { margin: 0 0 8px; color: #818875; font-size: 12px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.admin-dashboard__button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    min-height: 36px;
+    margin: 5px 0;
+    padding: 7px 10px;
+    color: #435237;
+    background: #f5f7f1;
+    border: 1px solid #e5eadc;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: background .15s ease, border-color .15s ease;
+}
+.admin-dashboard__button:hover, .admin-dashboard__button:focus-visible { color: #34431f; background: #edf3e3; border-color: #cbd9b8; text-decoration: none; }
+.admin-dashboard__button span { width: 20px; text-align: center; font-size: 15px; }
+.admin-dashboard__statistics { padding-left: 4px; }
+.admin-dashboard__stat {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    min-height: 52px;
+    padding: 11px 4px;
+    color: #505749;
+    border-bottom: 1px solid #e9ede4;
+    font-size: 15px;
+}
+.admin-dashboard__stat:last-child { border-bottom: 0; }
+.admin-dashboard__stat strong { color: #607d32; font-size: 23px; font-weight: 800; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) {
+    .admin-dashboard__overview { grid-template-columns: 1fr; gap: 18px; padding-top: 8px; }
+    .admin-dashboard__controls { padding: 0 0 18px; border-right: 0; border-bottom: 1px solid #dce3d2; }
+    .admin-dashboard__group { margin-bottom: 14px; }
+    .admin-dashboard__button { min-height: 40px; }
+    .admin-dashboard__statistics { padding-left: 0; }
+}
+
+/* Optional styling for the discount percentage shown beside the crossed-out retail price. */
+.price-discount {
+    display: inline-block;
+    margin-left: 3px;
+    color: #5c7f2d;
+    font-size: .88em;
+    font-weight: 700;
+    white-space: nowrap;
+}

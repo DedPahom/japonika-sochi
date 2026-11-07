@@ -3,11 +3,13 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/Models/Product.php';
+require_once __DIR__ . '/Models/CustomerPricing.php';
 require_once __DIR__ . '/Models/Category.php';
 require_once __DIR__ . '/Models/Cart.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $isAdmin = isset($_SESSION['admin_id']);
+$userDiscount = CustomerPricing::currentDiscount();
 $page = max(1, (int)($_GET['page'] ?? 1));
 $slug = trim((string)($_GET['category'] ?? ''));
 $scope = (($_GET['scope'] ?? 'all') === 'current') ? 'current' : 'all';
@@ -52,11 +54,11 @@ require __DIR__ . '/templates/header.php';
     </div><?php endif; ?>
     <?php if (!$products): ?><p class="catalog__empty"><?= $category ? 'В этом режиме товаров нет.' : 'Пока нет товаров.' ?></p>
     <?php else: ?><div class="products-grid">
-        <?php foreach ($products as $product): $inStock = Product::isInStock($product); ?>
+        <?php foreach ($products as $product): $inStock = Product::isInStock($product); $finalPrice = Product::getFinalPrice($product, $userDiscount); $appliedDiscount = (!empty($product['no_discount']) || $finalPrice >= (float)$product['price']) ? 0 : $userDiscount; ?>
             <article class="product-card <?= $inStock ? '' : 'product-card--out-of-stock' ?>">
                 <a href="/product.php?id=<?= (int)$product['id'] ?>" class="product-card__link">
                     <div class="product-card__image"><img src="<?= !empty($product['main_image']) ? '/uploads/products/' . rawurlencode(basename($product['main_image'])) : '/assets/images/no-image.jpg' ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" loading="lazy"><?php if (!$inStock): ?><span class="product-card__badge">Под заказ</span><?php endif; ?></div>
-                    <div class="product-card__info"><div class="product-card__article">Арт. <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div><h3 class="product-card__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h3><div class="product-card__price"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</div></div>
+                    <div class="product-card__info"><div class="product-card__article">Арт. <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div><h3 class="product-card__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h3><div class="product-card__price"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽<?php if ($finalPrice < (float)$product['price']): ?> <del class="product-card__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</del><?php if ($appliedDiscount > 0): ?> <span class="price-discount">(<?= $appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div></div>
                 </a>
                 <div class="product-card__quick-buy">
                     <label class="visually-hidden" for="quick-qty-<?= (int)$product['id'] ?>">Количество</label>
