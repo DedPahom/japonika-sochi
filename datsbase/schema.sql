@@ -168,6 +168,19 @@ CREATE TABLE IF NOT EXISTS `cart_items` (
   INDEX `idx_cart` (`cart_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Stores hashes only, not clear-text phone numbers or IP addresses.
+CREATE TABLE IF NOT EXISTS `auth_rate_limits` (
+  `action_name` VARCHAR(16) NOT NULL,
+  `bucket_type` VARCHAR(8) NOT NULL,
+  `bucket_hash` CHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+  `attempts` SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+  `window_started_at` DATETIME NOT NULL,
+  `blocked_until` DATETIME NULL,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`action_name`, `bucket_type`, `bucket_hash`),
+  INDEX `idx_auth_rate_blocked` (`blocked_until`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- Таблица: Журнал обменов
 CREATE TABLE IF NOT EXISTS `exchange_logs` (
   `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
