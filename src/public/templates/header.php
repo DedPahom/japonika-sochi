@@ -32,6 +32,7 @@ $accountLabel = isset($_SESSION['admin_id']) ? 'Админка' : 'Кабине�
             <nav class="nav" aria-label="Основная навигация">
                 <a href="/" class="nav__link">Главная</a>
                 <a href="/catalog.php" class="nav__link">Каталог</a>
+                <a href="/about.php" class="nav__link<?= $requestPath === '/about.php' ? ' is-active' : '' ?>">О компании</a>
                 <a href="/cart.php" class="nav__link nav__cart" aria-label="Корзина: <?= (int)$headerCart['count'] ?> шт., <?= number_format((float)$headerCart['total'], 0, '.', ' ') ?> рублей">
                     🛒 Корзина <span class="nav__cart-count" id="header-cart-count"><?= (int)$headerCart['count'] ?></span>
                     <span class="nav__cart-total" id="header-cart-total"><?= number_format((float)$headerCart['total'], 0, '.', ' ') ?> ₽</span>

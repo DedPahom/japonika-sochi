@@ -26,6 +26,8 @@ $inStock = Product::isInStock($product);
 $userDiscount = CustomerPricing::currentDiscount();
 $finalPrice = Product::getFinalPrice($product, $userDiscount);
 $appliedDiscount = (!empty($product['no_discount']) || $finalPrice >= (float)$product['price']) ? 0 : $userDiscount;
+// Clamp 1..15 units to a red (low stock) → amber → green scale; 15+ stays green.
+$stockHue = $inStock ? (int)round(10 + (min(15, (int)$product['quantity']) - 1) * (110 / 14)) : 10;
 $cartCsrf = Cart::csrfToken();
 $pageTitle = $product['name'] . ' — ' . SITE_NAME;
 require __DIR__ . '/templates/header.php';
@@ -81,7 +83,7 @@ require __DIR__ . '/templates/header.php';
             <h1 class="product__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h1>
             <?php if ($categories): ?><div class="product__categories">Категории: <?php foreach ($categories as $cat): ?><span class="product__category"><?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div><?php endif; ?>
             <div class="product__price"><span class="product__price-value"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽</span><?php if ($finalPrice < (float)$product['price']): ?><span class="product__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</span><?php if ($appliedDiscount > 0): ?><span class="price-discount">(<?= $appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div>
-            <div class="product__stock"><?php if ($inStock): ?><span class="product__stock-status product__stock-status--in">✓ В наличии (<?= (int)$product['quantity'] ?> шт.)</span><?php else: ?><span class="product__stock-status product__stock-status--out">Под заказ</span><?php endif; ?></div>
+            <div class="product__stock"><?php if ($inStock): ?><span class="product__stock-status product__stock-status--in product__stock-status--meter" style="--stock-hue: <?= $stockHue ?>">✓ В наличии</span><?php else: ?><span class="product__stock-status product__stock-status--out">Под заказ</span><?php endif; ?></div>
             <?php if (!empty($product['description'])): ?><div class="product__description"><h3>Описание</h3><?= nl2br(htmlspecialchars($product['description'], ENT_QUOTES, 'UTF-8')) ?></div><?php endif; ?>
             <div class="product__actions product-card__quick-buy">
                 <label class="visually-hidden" for="product-quantity">Количество</label>
