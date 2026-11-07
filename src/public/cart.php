@@ -121,7 +121,7 @@ require __DIR__ . '/templates/header.php';
                     <h2>Итого</h2>
                     <div class="cart-summary__row"><span>Товаров</span><strong><?= (int)$summary['count'] ?> шт.</strong></div>
                     <div class="cart-summary__total"><span>Сумма</span><strong><?= number_format((float)$summary['total'], 0, '.', ' ') ?> ₽</strong></div>
-                    <p class="cart-summary__note"><?= !empty($summary['discount']) ? 'Учтена ваша персональная скидка ' . (int)$summary['discount'] . '%; у товаров с запретом скидки она не применяется.' : 'Стоимость рассчитана по текущим ценам товаров.' ?></p>
+                    <p class="cart-summary__note"><?= !empty($summary['discount']) ? 'Учтена ваша персональная скидка ' . (int)$summary['discount'] . '%' : 'Стоимость рассчитана по текущим ценам товаров.' ?></p>
                     <?php if (!$isLoggedIn): ?>
                         <div class="cart-checkout__contact">
                             <h3>Контактные данные</h3>
