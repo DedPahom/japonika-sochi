@@ -6,6 +6,7 @@ require_once __DIR__ . '/Models/Product.php';
 require_once __DIR__ . '/Models/CustomerPricing.php';
 require_once __DIR__ . '/Models/Category.php';
 require_once __DIR__ . '/Models/Cart.php';
+require_once __DIR__ . '/Models/Promotions.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $isAdmin = isset($_SESSION['admin_id']);
@@ -30,6 +31,7 @@ if ($category) {
     $totalProducts = Product::getTotalCount();
     $pageTitle = 'Каталог — ' . SITE_NAME;
 }
+$promoBadges = Promotions::badgesByProductIds(array_column($products, 'id'));
 $totalPages = (int)ceil($totalProducts / PRODUCTS_PER_PAGE);
 $cartCsrf = Cart::csrfToken();
 $baseQuery = $category ? 'category=' . rawurlencode($category['slug']) : '';
@@ -72,7 +74,7 @@ require __DIR__ . '/templates/header.php';
             <article class="product-card <?= $inStock ? '' : 'product-card--out-of-stock' ?>">
                 <a href="/product.php?id=<?= (int)$product['id'] ?>" class="product-card__link">
                     <div class="product-card__image"><img src="<?= !empty($product['main_image']) ? '/uploads/products/' . rawurlencode(basename($product['main_image'])) : '/assets/images/no-image.jpg' ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" loading="lazy"><?php if (!$inStock): ?><span class="product-card__badge">Под заказ</span><?php endif; ?></div>
-                    <div class="product-card__info"><div class="product-card__article">Арт. <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div><h3 class="product-card__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h3><div class="product-card__price"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽<?php if ($finalPrice < (float)$product['price']): ?> <del class="product-card__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</del><?php if ($appliedDiscount > 0): ?> <span class="price-discount">(<?= $appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div></div>
+                    <div class="product-card__info"><div class="product-card__article">Арт. <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div><h3 class="product-card__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h3><?php if (!empty($promoBadges[(int)$product['id']])): $promoBadge = $promoBadges[(int)$product['id']]; ?><span class="product-promo-badge">Акция: <?= htmlspecialchars($promoBadge['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= (int)$promoBadge['discount_percent'] ?>%<?= $promoBadge['type'] === 'quantity_discount' ? ' · от ' . (int)$promoBadge['min_quantity'] . ' шт.' : '' ?></span><?php endif; ?><div class="product-card__price"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽<?php if ($finalPrice < (float)$product['price']): ?> <del class="product-card__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</del><?php if ($appliedDiscount > 0): ?> <span class="price-discount">(<?= $appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div></div>
                 </a>
                 <div class="product-card__quick-buy">
                     <label class="visually-hidden" for="quick-qty-<?= (int)$product['id'] ?>">Количество</label>

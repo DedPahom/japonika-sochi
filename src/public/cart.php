@@ -94,6 +94,7 @@ require __DIR__ . '/templates/header.php';
                                 <div class="product-card__article">Арт. <?= htmlspecialchars((string)$item['article'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                                 <a class="cart-item__name" href="/product.php?id=<?= $productId ?>"><?= htmlspecialchars((string)$item['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
                                 <?php if ($outOfStock): ?><span class="cart-item__stock-label">Под заказ · сейчас нет в наличии</span><?php endif; ?>
+                                <?php if (!empty($item['applied_promotion_name'])): ?><span class="cart-promotion-label">Акция: <?= htmlspecialchars((string)$item['applied_promotion_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?php endif; ?>
                                 <div class="cart-item__price">
                                     <?= number_format((float)$item['final_price'], 0, '.', ' ') ?> ₽
                                     <?php if ((int)$item['applied_discount'] > 0): ?><del class="product-card__price-old"><?= number_format((float)$item['price'], 0, '.', ' ') ?> ₽</del> <span class="price-discount">(<?= (int)$item['applied_discount'] ?>%)</span><?php endif; ?> / шт.

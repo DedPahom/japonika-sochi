@@ -5,6 +5,7 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/Models/Product.php';
 require_once __DIR__ . '/Models/CustomerPricing.php';
 require_once __DIR__ . '/Models/Cart.php';
+require_once __DIR__ . '/Models/Promotions.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $isAdmin = isset($_SESSION['admin_id']);
@@ -24,6 +25,7 @@ if (!$product) {
 if (!$isAdmin) Product::recordView($id);
 $images = Product::getImages($id);
 $categories = Product::getCategories($id);
+$promoBadge = Promotions::badgesByProductIds([$id])[$id] ?? null;
 $inStock = Product::isInStock($product);
 $userDiscount = CustomerPricing::currentDiscount();
 $finalPrice = Product::getFinalPrice($product, $userDiscount);
@@ -83,6 +85,7 @@ require __DIR__ . '/templates/header.php';
         <div class="product__info">
             <div class="product__article">Артикул: <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div>
             <h1 class="product__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h1>
+            <?php if ($promoBadge): ?><div class="product-promo-badge product-promo-badge--detail">Участник акции: <?= htmlspecialchars($promoBadge['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= (int)$promoBadge['discount_percent'] ?>%<?= $promoBadge['type'] === 'quantity_discount' ? ' · скидка от ' . (int)$promoBadge['min_quantity'] . ' шт.' : '' ?></div><?php endif; ?>
             <?php if ($categories): ?><div class="product__categories">Категории: <?php foreach ($categories as $cat): ?><span class="product__category"><?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div><?php endif; ?>
             <div class="product__price"><span class="product__price-value"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽</span><?php if ($finalPrice < (float)$product['price']): ?><span class="product__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</span><?php if ($appliedDiscount > 0): ?><span class="price-discount">(<?= $appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div>
             <div class="product__stock"><?php if ($inStock): ?><span class="product__stock-status product__stock-status--in product__stock-status--meter" style="--stock-hue: <?= $stockHue ?>">✓ В наличии</span><?php else: ?><span class="product__stock-status product__stock-status--out">Под заказ</span><?php endif; ?></div>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 require_once ROOT_PATH . '/config/database.php';
 require_once __DIR__ . '/CustomerPricing.php';
 require_once __DIR__ . '/Phone.php';
+require_once __DIR__ . '/Promotions.php';
 
 /** Session cart with checkout snapshots and out-of-stock customer preferences. */
 class Cart
@@ -139,16 +140,22 @@ class Cart
         $items = self::getItems();
         $count = 0;
         $total = 0.0;
-        $discount = CustomerPricing::currentDiscount();
+        $personalDiscount = CustomerPricing::currentDiscount();
+        $promoDiscounts = Promotions::cartDiscounts($items);
         foreach ($items as &$item) {
             $count += (int)$item['quantity'];
             $basePrice = (float)$item['price'];
-            $item['final_price'] = !empty($item['no_discount']) ? $basePrice : floor($basePrice * (1 - $discount / 100));
-            $item['applied_discount'] = (!empty($item['no_discount']) || $item['final_price'] >= $basePrice) ? 0 : $discount;
+            $promo = $promoDiscounts[(int)$item['product_id']] ?? null;
+            $effectiveDiscount = !empty($item['no_discount']) ? 0 : max($personalDiscount, (int)($promo['discount_percent'] ?? 0));
+            $item['final_price'] = $effectiveDiscount > 0 ? floor($basePrice * (1 - $effectiveDiscount / 100)) : $basePrice;
+            $item['applied_discount'] = $item['final_price'] < $basePrice ? $effectiveDiscount : 0;
+            $item['applied_promotion_name'] = ($promo && (int)$promo['discount_percent'] >= $personalDiscount && empty($item['no_discount'])) ? $promo['title'] : '';
+            $item['promotion_hint'] = '';
+            if ($promo && $item['applied_promotion_name'] !== '') $item['promotion_hint'] = $promo['type'] === 'quantity_discount' ? 'Акция: ' . $promo['title'] : 'Акция: ' . $promo['title'];
             $total += (float)$item['final_price'] * (int)$item['quantity'];
         }
         unset($item);
-        return ['items' => $items, 'count' => $count, 'total' => $total, 'discount' => $discount];
+        return ['items' => $items, 'count' => $count, 'total' => $total, 'discount' => $personalDiscount];
     }
 
     /** Create an order snapshot and empty the cart atomically. $contact is required only for guests. */
@@ -220,14 +227,19 @@ class Cart
             $totalRetail = 0.0;
             $totalFinal = 0.0;
             $snapshots = [];
+            $promoDiscounts = Promotions::cartDiscounts($items, $db);
             foreach ($items as $item) {
                 $retail = (float)$item['price'];
-                $final = !empty($item['no_discount']) ? $retail : floor($retail * (1 - $userDiscount / 100));
                 $qty = max(1, (int)$item['quantity']);
+                $promo = $promoDiscounts[(int)$item['product_id']] ?? null;
+                $effectiveDiscount = !empty($item['no_discount']) ? 0 : max($userDiscount, (int)($promo['discount_percent'] ?? 0));
+                $final = $effectiveDiscount > 0 ? floor($retail * (1 - $effectiveDiscount / 100)) : $retail;
+                $appliedPromotion = ($promo && (int)$promo['discount_percent'] >= $userDiscount && empty($item['no_discount'])) ? (string)$promo['title'] : null;
+                $appliedPercent = $final < $retail ? $effectiveDiscount : 0;
                 $isPreorder = (int)$item['stock'] === 0 ? 1 : 0;
                 $notify = $isPreorder ? (int)$item['notify_on_available'] : 0;
                 $replacement = $isPreorder ? (int)$item['request_replacement'] : 0;
-                $snapshots[] = [$item, $retail, $final, $qty, $isPreorder, $notify, $replacement];
+                $snapshots[] = [$item, $retail, $final, $qty, $isPreorder, $notify, $replacement, $appliedPercent, $appliedPromotion];
                 $totalRetail += $retail * $qty;
                 $totalFinal += $final * $qty;
             }
@@ -238,12 +250,12 @@ class Cart
             $orderStmt->execute([$userId, $phone, $name, $comment !== '' ? $comment : null, number_format($totalRetail, 2, '.', ''), number_format($totalFinal, 2, '.', '')]);
             $orderId = (int)$db->lastInsertId();
 
-            $insertItem = $db->prepare('INSERT INTO order_items (order_id, product_id, product_name, product_article, price_retail, price_final, quantity, is_preorder, notify_on_available, request_replacement) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $insertItem = $db->prepare('INSERT INTO order_items (order_id, product_id, product_name, product_article, price_retail, price_final, applied_discount_percent, applied_promotion_name, quantity, is_preorder, notify_on_available, request_replacement) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
             $incrementPopularity = $db->prepare('UPDATE products SET order_count = order_count + ?, ordered_quantity = ordered_quantity + ? WHERE id = ?');
             $countedProductIds = [];
-            foreach ($snapshots as [$item, $retail, $final, $qty, $isPreorder, $notify, $replacement]) {
+            foreach ($snapshots as [$item, $retail, $final, $qty, $isPreorder, $notify, $replacement, $appliedPercent, $appliedPromotion]) {
                 $productId = (int)$item['product_id'];
-                $insertItem->execute([$orderId, $productId, (string)$item['product_name'], (string)$item['article'], number_format($retail, 2, '.', ''), number_format($final, 2, '.', ''), $qty, $isPreorder, $notify, $replacement]);
+                $insertItem->execute([$orderId, $productId, (string)$item['product_name'], (string)$item['article'], number_format($retail, 2, '.', ''), number_format($final, 2, '.', ''), $appliedPercent, $appliedPromotion, $qty, $isPreorder, $notify, $replacement]);
                 // Count distinct orders containing the product plus purchased units.
                 // All counters update in this order transaction, so rollback remains exact.
                 $isFirstLineForProduct = !isset($countedProductIds[$productId]);
