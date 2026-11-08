@@ -11,7 +11,8 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $isAdmin = isset($_SESSION['admin_id']);
 $userDiscount = CustomerPricing::currentDiscount();
 $page = max(1, (int)($_GET['page'] ?? 1));
-$sort = (($_GET['sort'] ?? 'popular') === 'article') ? 'article' : 'popular';
+$sort = (string)($_GET['sort'] ?? 'popular');
+if (!in_array($sort, ['popular', 'article', 'cheaper', 'expensive'], true)) $sort = 'popular';
 $slug = trim((string)($_GET['category'] ?? ''));
 $scope = (($_GET['scope'] ?? 'all') === 'current') ? 'current' : 'all';
 $includeDescendants = $scope === 'all';
@@ -59,6 +60,8 @@ require __DIR__ . '/templates/header.php';
             <select id="catalog-sort" name="sort" onchange="this.form.submit()">
                 <option value="popular" <?= $sort === 'popular' ? 'selected' : '' ?>>Сначала популярные</option>
                 <option value="article" <?= $sort === 'article' ? 'selected' : '' ?>>По артикулу</option>
+                <option value="cheaper" <?= $sort === 'cheaper' ? 'selected' : '' ?>>Дешевле</option>
+                <option value="expensive" <?= $sort === 'expensive' ? 'selected' : '' ?>>Дороже</option>
             </select>
         </label>
         <noscript><button class="btn btn--small" type="submit">Применить</button></noscript>

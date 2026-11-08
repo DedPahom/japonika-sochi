@@ -113,9 +113,12 @@ class Category
         if (!$ids) return [];
         $marks = implode(',', array_fill(0, count($ids), '?'));
         $offset = max(0, ($page - 1) * $perPage);
-        $sortOrder = $sort === 'article'
-            ? 'p.article ASC, p.id ASC'
-            : 'COALESCE(p.order_count, 0) DESC, COALESCE(p.ordered_quantity, 0) DESC, COALESCE(p.view_count, 0) DESC, p.article ASC, p.id ASC';
+        $sortOrder = match ($sort) {
+            'article' => 'p.article ASC, p.id ASC',
+            'cheaper' => 'p.price ASC, p.article ASC, p.id ASC',
+            'expensive' => 'p.price DESC, p.article ASC, p.id ASC',
+            default => 'COALESCE(p.order_count, 0) DESC, COALESCE(p.ordered_quantity, 0) DESC, COALESCE(p.view_count, 0) DESC, p.article ASC, p.id ASC',
+        };
         $sql = "SELECT p.*, COALESCE((SELECT pi.file_path FROM product_images pi WHERE pi.product_id=p.id ORDER BY pi.sort_order, pi.id LIMIT 1), '') AS main_image
                 FROM products p
                 WHERE p.id IN (SELECT DISTINCT pc.product_id FROM product_categories pc WHERE pc.category_id IN ($marks))

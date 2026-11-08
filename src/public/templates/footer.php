@@ -59,6 +59,7 @@ if (!function_exists('mobileRenderCategoryMenu')) {
             <div class="footer__inner">
                 <p>&copy; <?= date('Y') ?> <?= htmlspecialchars(SITE_NAME, ENT_QUOTES, 'UTF-8') ?>. Все права защищены.</p>
                 <p>Магазин азиатской косметики и товаров для дома</p>
+                <p><a href="mailto:shop@mail.japonika-sochi.ru">shop@mail.japonika-sochi.ru</a></p>
             </div>
         </div>
     </footer>

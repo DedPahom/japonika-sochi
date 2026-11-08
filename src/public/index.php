@@ -12,7 +12,8 @@ $isAdmin = isset($_SESSION['admin_id']);
 $userDiscount = CustomerPricing::currentDiscount();
 
 $page = max(1, (int)($_GET['page'] ?? 1));
-$sort = (($_GET['sort'] ?? 'popular') === 'article') ? 'article' : 'popular';
+$sort = (string)($_GET['sort'] ?? 'popular');
+if (!in_array($sort, ['popular', 'article', 'cheaper', 'expensive'], true)) $sort = 'popular';
 $categories = Category::getRoots();
 $products = Product::getList($page, PRODUCTS_PER_PAGE, $sort);
 $totalProducts = Product::getTotalCount();
@@ -34,6 +35,8 @@ require __DIR__ . '/templates/header.php';
             <select id="catalog-sort" name="sort" onchange="this.form.submit()">
                 <option value="popular" <?= $sort === 'popular' ? 'selected' : '' ?>>Сначала популярные</option>
                 <option value="article" <?= $sort === 'article' ? 'selected' : '' ?>>По артикулу</option>
+                <option value="cheaper" <?= $sort === 'cheaper' ? 'selected' : '' ?>>Дешевле</option>
+                <option value="expensive" <?= $sort === 'expensive' ? 'selected' : '' ?>>Дороже</option>
             </select>
         </label>
         <noscript><button class="btn btn--small" type="submit">Применить</button></noscript>

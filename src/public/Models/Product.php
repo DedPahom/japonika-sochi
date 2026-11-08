@@ -15,9 +15,12 @@ class Product
     {
         $db = getDBConnection();
         $offset = max(0, ($page - 1) * $perPage);
-        $sortOrder = $sort === 'article'
-            ? 'p.article ASC, p.id ASC'
-            : 'COALESCE(p.order_count, 0) DESC, COALESCE(p.ordered_quantity, 0) DESC, COALESCE(p.view_count, 0) DESC, p.article ASC, p.id ASC';
+        $sortOrder = match ($sort) {
+            'article' => 'p.article ASC, p.id ASC',
+            'cheaper' => 'p.price ASC, p.article ASC, p.id ASC',
+            'expensive' => 'p.price DESC, p.article ASC, p.id ASC',
+            default => 'COALESCE(p.order_count, 0) DESC, COALESCE(p.ordered_quantity, 0) DESC, COALESCE(p.view_count, 0) DESC, p.article ASC, p.id ASC',
+        };
 
         // In-stock products are always listed before preorder/out-of-stock products.
         $sql = "SELECT p.*, COALESCE(pi.file_path, '') AS main_image
