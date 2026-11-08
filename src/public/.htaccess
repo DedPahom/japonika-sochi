@@ -1,6 +1,10 @@
 # Включаем mod_rewrite
 RewriteEngine On
 
+# Старый адрес каталога перенаправляем на главную сайта.
+# Работают оба варианта: /catalog и /catalog/
+RewriteRule ^catalog/?$ / [R=301,L]
+
 # Запрещаем доступ к скрытым файлам
 <FilesMatch "^\.">
     Order allow,deny
