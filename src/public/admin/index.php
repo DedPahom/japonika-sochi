@@ -28,8 +28,7 @@ require __DIR__ . '/../templates/header.php';
             <div class="admin-dashboard__group">
                 <h3>Магазин</h3>
                 <a href="/admin/products.php" class="admin-dashboard__button"><span aria-hidden="true">📦</span> Товары</a>
-                <a href="/admin/promotions.php#promo-upload" class="admin-dashboard__button"><span aria-hidden="true">📥</span> Загрузить акции</a>
-                <a href="/admin/promotions.php#promo-editor" class="admin-dashboard__button"><span aria-hidden="true">🏷️</span> Управление акциями</a>
+                <a href="/admin/promotions.php" class="admin-dashboard__button"><span aria-hidden="true">🏷️</span> Управление акциями</a>
                 <a href="/admin/categories.php" class="admin-dashboard__button"><span aria-hidden="true">🗂️</span> Категории каталога</a>
                 <a href="/admin/orders.php" class="admin-dashboard__button"><span aria-hidden="true">🛒</span> Заказы</a>
                 <a href="/admin/users.php" class="admin-dashboard__button"><span aria-hidden="true">👥</span> Пользователи</a>
@@ -38,6 +37,7 @@ require __DIR__ . '/../templates/header.php';
                 <h3>Обмен с 1С</h3>
                 <a href="/admin/import.php" class="admin-dashboard__button"><span aria-hidden="true">📥</span> Импорт каталога</a>
                 <a href="/admin/import-users.php" class="admin-dashboard__button"><span aria-hidden="true">👤</span> Импорт пользователей</a>
+                <a href="/admin/import-promotions.php" class="admin-dashboard__button"><span aria-hidden="true">🏷️</span> Импорт акций</a>
                 <a href="/admin/export.php" class="admin-dashboard__button"><span aria-hidden="true">📤</span> Экспорт</a>
             </div>
         </div>
