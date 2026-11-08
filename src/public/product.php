@@ -20,6 +20,8 @@ if (!$product) {
     require __DIR__ . '/templates/footer.php';
     exit;
 }
+// Count at most one non-admin product-card view per session per product per 24 hours.
+if (!$isAdmin) Product::recordView($id);
 $images = Product::getImages($id);
 $categories = Product::getCategories($id);
 $inStock = Product::isInStock($product);

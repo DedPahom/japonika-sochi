@@ -239,8 +239,16 @@ class Cart
             $orderId = (int)$db->lastInsertId();
 
             $insertItem = $db->prepare('INSERT INTO order_items (order_id, product_id, product_name, product_article, price_retail, price_final, quantity, is_preorder, notify_on_available, request_replacement) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+            $incrementPopularity = $db->prepare('UPDATE products SET order_count = order_count + ?, ordered_quantity = ordered_quantity + ? WHERE id = ?');
+            $countedProductIds = [];
             foreach ($snapshots as [$item, $retail, $final, $qty, $isPreorder, $notify, $replacement]) {
-                $insertItem->execute([$orderId, (int)$item['product_id'], (string)$item['product_name'], (string)$item['article'], number_format($retail, 2, '.', ''), number_format($final, 2, '.', ''), $qty, $isPreorder, $notify, $replacement]);
+                $productId = (int)$item['product_id'];
+                $insertItem->execute([$orderId, $productId, (string)$item['product_name'], (string)$item['article'], number_format($retail, 2, '.', ''), number_format($final, 2, '.', ''), $qty, $isPreorder, $notify, $replacement]);
+                // Count distinct orders containing the product plus purchased units.
+                // All counters update in this order transaction, so rollback remains exact.
+                $isFirstLineForProduct = !isset($countedProductIds[$productId]);
+                $incrementPopularity->execute([$isFirstLineForProduct ? 1 : 0, $qty, $productId]);
+                $countedProductIds[$productId] = true;
             }
 
             $db->prepare('UPDATE carts SET user_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$userId, $cartId]);

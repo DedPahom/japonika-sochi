@@ -126,7 +126,7 @@ require __DIR__ . '/templates/header.php';
                         <div class="cart-checkout__contact">
                             <h3>Контактные данные</h3>
                             <label>Имя <input type="text" name="name" maxlength="255" required value="<?= htmlspecialchars((string)($_POST['name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></label>
-                            <label>Телефон <input type="tel" name="phone" required autocomplete="tel" placeholder="+7 918 202-95-26" value="<?= htmlspecialchars((string)($_POST['phone'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></label>
+                            <label>Телефон <input type="tel" name="phone" required autocomplete="tel" placeholder="+7 999 999-99-99" value="<?= htmlspecialchars((string)($_POST['phone'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></label>
                         </div>
                     <?php endif; ?>
                     <label class="cart-checkout__comment">Комментарий (необязательно)<textarea name="comment" rows="3" maxlength="3000"><?= htmlspecialchars((string)($_POST['comment'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea></label>

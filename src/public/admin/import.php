@@ -37,6 +37,8 @@ function parseCatalog(string $json): array
         $line = $index + 1;
         if (!is_array($row)) { $errors[] = "Запись {$line}: ожидался объект."; continue; }
         $guid = trim((string)($row['onec_id'] ?? ''));
+        // A row without a 1C identifier is intentionally skipped.
+        if ($guid === '') continue;
         $article = trim((string)($row['article'] ?? ''));
         $name = trim((string)($row['name'] ?? ''));
         if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $guid)) {
@@ -136,8 +138,9 @@ function applyCatalog(PDO $db, array $groups): array
     $db->beginTransaction();
     try {
         $categoryCache = [];
-        $stats = ['created'=>0,'updated'=>0,'categories_created'=>0,'links'=>0];
-        $findGuid = $db->prepare('SELECT id, article FROM products WHERE onec_id = ?');
+        $stats = ['created'=>0,'updated'=>0,'relinked'=>0,'categories_created'=>0,'links'=>0];
+        $findGuid = $db->prepare('SELECT id, article, name FROM products WHERE onec_id = ?');
+        $findArticleName = $db->prepare('SELECT id, onec_id, article, name FROM products WHERE article = ? AND name = ? ORDER BY id LIMIT 2');
         $findArticle = $db->prepare('SELECT id, onec_id FROM products WHERE article = ?');
         $insertProduct = $db->prepare('INSERT INTO products (onec_id, article, name, description, price, quantity) VALUES (?, ?, ?, ?, ?, ?)');
         $updateProduct = $db->prepare('UPDATE products SET article = ?, name = ?, description = ?, price = ?, quantity = ?, onec_id = ? WHERE id = ?');
@@ -146,14 +149,32 @@ function applyCatalog(PDO $db, array $groups): array
         $categoryCountBefore = (int)$db->query('SELECT COUNT(*) FROM categories')->fetchColumn();
 
         foreach ($groups as $product) {
+            // Normal match is GUID. If the 1C GUID changed, exact article + name
+            // safely identifies the old site row and lets us relink it to the new GUID.
+            $findArticleName->execute([$product['article'], $product['name']]);
+            $sameArticleName = $findArticleName->fetchAll(PDO::FETCH_ASSOC);
+            if (count($sameArticleName) > 1) {
+                failImport("Артикул и название «{$product['article']} / {$product['name']}» совпадают у нескольких товаров в базе; автоматическое сопоставление отменено.");
+            }
+
             $findGuid->execute([$product['onec_id']]);
-            $existing = $findGuid->fetch(PDO::FETCH_ASSOC);
-            if (!$existing) {
+            $byGuid = $findGuid->fetch(PDO::FETCH_ASSOC);
+            $existing = null;
+            if (count($sameArticleName) === 1) {
+                $byArticleName = $sameArticleName[0];
+                if ($byGuid && (int)$byGuid['id'] !== (int)$byArticleName['id']) {
+                    failImport("Новый onec_id для «{$product['article']} / {$product['name']}» уже привязан к другому товару. Импорт остановлен, чтобы не объединить разные записи.");
+                }
+                $existing = $byArticleName;
+                if (strcasecmp((string)($byArticleName['onec_id'] ?? ''), (string)$product['onec_id']) !== 0) $stats['relinked']++;
+            } elseif ($byGuid) {
+                $existing = $byGuid;
+            } else {
                 $findArticle->execute([$product['article']]);
                 $byArticle = $findArticle->fetch(PDO::FETCH_ASSOC);
                 if ($byArticle) {
-                    if (!empty($byArticle['onec_id']) && strcasecmp($byArticle['onec_id'], $product['onec_id']) !== 0) {
-                        failImport("Артикул {$product['article']} уже принадлежит другому onec_id.");
+                    if (!empty($byArticle['onec_id']) && strcasecmp((string)$byArticle['onec_id'], (string)$product['onec_id']) !== 0) {
+                        failImport("Артикул {$product['article']} уже принадлежит товару с другим названием и другим onec_id; совпадения article + name нет. Импорт отменён.");
                     }
                     $existing = $byArticle;
                 }
@@ -220,7 +241,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stats = applyCatalog(getDBConnection(), $groups);
                     @unlink($stage);
                     unset($_SESSION[IMPORT_SESSION_KEY]);
-                    $message = "Импорт завершён. Создано товаров: {$stats['created']}; обновлено: {$stats['updated']}; создано категорий: {$stats['categories_created']}; связей товар–категория: {$stats['links']}.";
+                    $message = "Импорт завершён. Создано товаров: {$stats['created']}; обновлено: {$stats['updated']}; переназначено onec_id по совпадению артикула и названия: {$stats['relinked']}; создано категорий: {$stats['categories_created']}; связей товар–категория: {$stats['links']}.";
                 }
             } catch (Throwable $e) { $errors[] = 'Импорт отменён: ' . $e->getMessage(); }
         }
@@ -240,15 +261,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($parseErrors) $errors = $parseErrors;
                 else {
                     $db = getDBConnection();
-                    $newCount = $updateCount = $newCats = 0;
+                    $newCount = $updateCount = $relinkCount = $newCats = 0;
                     $checkGuid = $db->prepare('SELECT id FROM products WHERE onec_id = ?');
-                    foreach ($groups as $p) { $checkGuid->execute([$p['onec_id']]); if ($checkGuid->fetchColumn()) $updateCount++; else $newCount++; }
+                    $checkArticleName = $db->prepare('SELECT id, onec_id FROM products WHERE article = ? AND name = ? ORDER BY id LIMIT 2');
+                    foreach ($groups as $p) {
+                        $checkArticleName->execute([$p['article'], $p['name']]);
+                        $pairMatches = $checkArticleName->fetchAll(PDO::FETCH_ASSOC);
+                        $checkGuid->execute([$p['onec_id']]);
+                        $guidMatch = $checkGuid->fetchColumn();
+                        if (count($pairMatches) > 1) failImport("Артикул и название «{$p['article']} / {$p['name']}» совпадают у нескольких товаров в базе.");
+                        if (count($pairMatches) === 1) {
+                            $updateCount++;
+                            if (strcasecmp((string)($pairMatches[0]['onec_id'] ?? ''), (string)$p['onec_id']) !== 0) $relinkCount++;
+                            if ($guidMatch && (int)$guidMatch !== (int)$pairMatches[0]['id']) failImport("Новый onec_id для «{$p['article']} / {$p['name']}» уже привязан к другой записи.");
+                        } elseif ($guidMatch) $updateCount++;
+                        else $newCount++;
+                    }
                     // Stage privately, outside the document root; only the session owner can confirm it.
                     $stage = tempnam(sys_get_temp_dir(), 'japonika-import-');
                     if ($stage === false || file_put_contents($stage, $json, LOCK_EX) === false) failImport('Не удалось сохранить файл для подтверждения.');
                     @chmod($stage, 0600);
                     $_SESSION[IMPORT_SESSION_KEY] = $stage;
-                    $preview = ['products'=>count($groups),'new'=>$newCount,'updated'=>$updateCount,'categories_to_be_created'=>'будут созданы при импорте'];
+                    $preview = ['products'=>count($groups),'new'=>$newCount,'updated'=>$updateCount,'relinked'=>$relinkCount,'categories_to_be_created'=>'будут созданы при импорте'];
                 }
             } catch (Throwable $e) { $errors[] = 'Не удалось прочитать JSON: ' . $e->getMessage(); }
         }
@@ -260,14 +294,14 @@ require __DIR__ . '/../templates/header.php';
 ?>
 <main class="container" style="max-width:900px;margin:32px auto;padding:0 16px">
     <h1>Импорт каталога из 1С</h1>
-    <p>JSON до 20 МБ. Товары сопоставляются по onec_id. Пустые description, price и quantity не затирают данные существующего товара; у нового товара пустая цена недопустима.</p>
+    <p>JSON до 20 МБ. Товары сопоставляются по onec_id; если GUID изменился, применяется точное совпадение article + name, и старый onec_id заменяется новым. Записи с пустым onec_id пропускаются. Пустые description, price и quantity не затирают данные существующего товара; у нового товара пустая цена недопустима.</p>
     <?php if ($message !== ''): ?><div style="padding:12px;background:#e8f6e8;margin:16px 0"><?= h($message) ?></div><?php endif; ?>
     <?php foreach ($errors as $error): ?><div style="padding:10px;background:#fde8e8;margin:8px 0"><?= h($error) ?></div><?php endforeach; ?>
 
     <?php if ($preview): ?>
         <section style="padding:16px;border:1px solid #ccc;margin:20px 0">
             <h2>Проверка завершена — подтвердите импорт</h2>
-            <p>Уникальных товаров: <?= (int)$preview['products'] ?>; новых: <?= (int)$preview['new'] ?>; найденных для обновления по GUID: <?= (int)$preview['updated'] ?>.</p>
+            <p>Уникальных товаров: <?= (int)$preview['products'] ?>; новых: <?= (int)$preview['new'] ?>; существующих для обновления: <?= (int)$preview['updated'] ?>; GUID будет заменён при совпадении артикула и названия: <?= (int)($preview['relinked'] ?? 0) ?>.</p>
             <p>Создание категорий и обновление данных выполнятся в одной транзакции. Если возникнет ошибка, изменения будут отменены.</p>
             <form method="post">
                 <input type="hidden" name="csrf" value="<?= h($csrf) ?>">

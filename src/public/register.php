@@ -78,7 +78,7 @@ require __DIR__ . '/templates/header.php';
     <?php if ($success): ?><div class="alert alert--success"><?= htmlspecialchars($success, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div><?php endif; ?>
     <form method="post" class="form">
         <div class="form__group"><label for="name">Имя *</label><input type="text" id="name" name="name" required maxlength="255" value="<?= htmlspecialchars((string)($_POST['name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></div>
-        <div class="form__group"><label for="phone">Телефон *</label><input type="tel" id="phone" name="phone" required autocomplete="tel" placeholder="+7 918 202-95-26" value="<?= htmlspecialchars((string)($_POST['phone'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><small>Номер сохраняется в едином формате +7XXXXXXXXXX.</small></div>
+        <div class="form__group"><label for="phone">Телефон *</label><input type="tel" id="phone" name="phone" required autocomplete="tel" placeholder="+7 999 999-99-99" value="<?= htmlspecialchars((string)($_POST['phone'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><small>Номер сохраняется в едином формате +7XXXXXXXXXX.</small></div>
         <div class="form__group"><label for="password">Пароль *</label><input type="password" id="password" name="password" required minlength="6" autocomplete="new-password"></div>
         <div class="form__group"><label for="password_confirm">Повторите пароль *</label><input type="password" id="password_confirm" name="password_confirm" required minlength="6" autocomplete="new-password"></div>
         <button type="submit" class="btn btn--primary">Зарегистрироваться</button>

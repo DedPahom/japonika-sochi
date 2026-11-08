@@ -28,6 +28,7 @@ require __DIR__ . '/../templates/header.php';
             <div class="admin-dashboard__group">
                 <h3>Магазин</h3>
                 <a href="/admin/products.php" class="admin-dashboard__button"><span aria-hidden="true">📦</span> Товары</a>
+                <a href="/admin/categories.php" class="admin-dashboard__button"><span aria-hidden="true">🗂️</span> Категории каталога</a>
                 <a href="/admin/orders.php" class="admin-dashboard__button"><span aria-hidden="true">🛒</span> Заказы</a>
                 <a href="/admin/users.php" class="admin-dashboard__button"><span aria-hidden="true">👥</span> Пользователи</a>
             </div>

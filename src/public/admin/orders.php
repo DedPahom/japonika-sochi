@@ -168,7 +168,7 @@ require __DIR__ . '/../templates/header.php';
             </select>
         </label>
         <label for="order-q">Поиск по №, имени или телефону
-            <input id="order-q" type="search" name="q" maxlength="100" value="<?= ordersH($q) ?>" placeholder="Например, 125 или 9182029526">
+            <input id="order-q" type="search" name="q" maxlength="100" value="<?= ordersH($q) ?>" placeholder="В свободном формате и даже по части номера">
         </label>
         <button class="btn btn--primary btn--small" type="submit">Найти</button>
         <a class="btn btn--small" href="/admin/orders.php">Сбросить</a>

@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../Models/Category.php';
-$mobileCategoryRows = Category::getAll();
+$mobileCategoryRows = Category::getVisibleAll();
 $mobileCategoryChildren = [];
 foreach ($mobileCategoryRows as $mobileCategoryRow) {
     $mobileParentId = (int)($mobileCategoryRow['parent_id'] ?? 0);

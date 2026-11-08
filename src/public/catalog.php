@@ -11,6 +11,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $isAdmin = isset($_SESSION['admin_id']);
 $userDiscount = CustomerPricing::currentDiscount();
 $page = max(1, (int)($_GET['page'] ?? 1));
+$sort = (($_GET['sort'] ?? 'popular') === 'article') ? 'article' : 'popular';
 $slug = trim((string)($_GET['category'] ?? ''));
 $scope = (($_GET['scope'] ?? 'all') === 'current') ? 'current' : 'all';
 $includeDescendants = $scope === 'all';
@@ -20,11 +21,11 @@ $categories = $category ? Category::getChildren((int)$category['id']) : Category
 $path = $category ? Category::getPath((int)$category['id']) : [];
 
 if ($category) {
-    $products = Category::getProducts((int)$category['id'], $includeDescendants, $page);
+    $products = Category::getProducts((int)$category['id'], $includeDescendants, $page, PRODUCTS_PER_PAGE, $sort);
     $totalProducts = Category::countProducts((int)$category['id'], $includeDescendants);
     $pageTitle = $category['name'] . ' — Каталог — ' . SITE_NAME;
 } else {
-    $products = Product::getList($page);
+    $products = Product::getList($page, PRODUCTS_PER_PAGE, $sort);
     $totalProducts = Product::getTotalCount();
     $pageTitle = 'Каталог — ' . SITE_NAME;
 }
@@ -49,9 +50,19 @@ require __DIR__ . '/templates/header.php';
     </nav><?php endif; ?>
     <?php if ($category): ?><div class="catalog-scope" role="group" aria-label="Какие товары показывать">
         <span>Показать:</span>
-        <a class="catalog-scope__link <?= !$includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=current">Только в этом разделе</a>
-        <a class="catalog-scope__link <?= $includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=all">Включая вложенные</a>
+        <a class="catalog-scope__link <?= !$includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=current&amp;sort=<?= rawurlencode($sort) ?>">Только в этом разделе</a>
+        <a class="catalog-scope__link <?= $includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=all&amp;sort=<?= rawurlencode($sort) ?>">Включая вложенные</a>
     </div><?php endif; ?>
+    <form class="catalog-sort" method="get" action="/catalog.php">
+        <?php if ($category): ?><input type="hidden" name="category" value="<?= htmlspecialchars((string)$category['slug'], ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="scope" value="<?= $includeDescendants ? 'all' : 'current' ?>"><?php endif; ?>
+        <label for="catalog-sort">Сортировка
+            <select id="catalog-sort" name="sort" onchange="this.form.submit()">
+                <option value="popular" <?= $sort === 'popular' ? 'selected' : '' ?>>Сначала популярные</option>
+                <option value="article" <?= $sort === 'article' ? 'selected' : '' ?>>По артикулу</option>
+            </select>
+        </label>
+        <noscript><button class="btn btn--small" type="submit">Применить</button></noscript>
+    </form>
     <?php if (!$products): ?><p class="catalog__empty"><?= $category ? 'В этом режиме товаров нет.' : 'Пока нет товаров.' ?></p>
     <?php else: ?><div class="products-grid">
         <?php foreach ($products as $product): $inStock = Product::isInStock($product); $finalPrice = Product::getFinalPrice($product, $userDiscount); $appliedDiscount = (!empty($product['no_discount']) || $finalPrice >= (float)$product['price']) ? 0 : $userDiscount; ?>
@@ -69,7 +80,7 @@ require __DIR__ . '/templates/header.php';
             </article>
         <?php endforeach; ?>
     </div>
-    <?php if ($totalPages > 1): ?><div class="pagination"><?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?<?= $baseQuery ?><?= $baseQuery ? '&amp;' : '' ?>page=<?= $i ?><?= $modeQuery ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?></div><?php endif; ?>
+    <?php if ($totalPages > 1): ?><div class="pagination"><?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?<?= $baseQuery ?><?= $baseQuery ? '&amp;' : '' ?>page=<?= $i ?><?= $modeQuery ?>&amp;sort=<?= rawurlencode($sort) ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?></div><?php endif; ?>
     <?php endif; ?>
 </div>
 <?php require __DIR__ . '/templates/footer.php'; ?>

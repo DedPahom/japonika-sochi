@@ -12,8 +12,9 @@ $isAdmin = isset($_SESSION['admin_id']);
 $userDiscount = CustomerPricing::currentDiscount();
 
 $page = max(1, (int)($_GET['page'] ?? 1));
+$sort = (($_GET['sort'] ?? 'popular') === 'article') ? 'article' : 'popular';
 $categories = Category::getRoots();
-$products = Product::getList($page);
+$products = Product::getList($page, PRODUCTS_PER_PAGE, $sort);
 $totalProducts = Product::getTotalCount();
 $totalPages = (int)ceil($totalProducts / PRODUCTS_PER_PAGE);
 $cartCsrf = Cart::csrfToken();
@@ -28,6 +29,15 @@ require __DIR__ . '/templates/header.php';
         <?php endforeach; ?>
     </nav>
     <h2 class="catalog__subtitle">Все товары</h2>
+    <form class="catalog-sort" method="get" action="/">
+        <label for="catalog-sort">Сортировка
+            <select id="catalog-sort" name="sort" onchange="this.form.submit()">
+                <option value="popular" <?= $sort === 'popular' ? 'selected' : '' ?>>Сначала популярные</option>
+                <option value="article" <?= $sort === 'article' ? 'selected' : '' ?>>По артикулу</option>
+            </select>
+        </label>
+        <noscript><button class="btn btn--small" type="submit">Применить</button></noscript>
+    </form>
     <?php if (!$products): ?>
         <p class="catalog__empty">Пока нет товаров. Загрузите каталог через админ-панель.</p>
     <?php else: ?>
@@ -55,7 +65,7 @@ require __DIR__ . '/templates/header.php';
             <?php endforeach; ?>
         </div>
         <?php if ($totalPages > 1): ?><div class="pagination">
-            <?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?page=<?= $i ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?>
+            <?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?page=<?= $i ?>&amp;sort=<?= rawurlencode($sort) ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?>
         </div><?php endif; ?>
     <?php endif; ?>
 </div>

@@ -16,6 +16,13 @@ if (!hash_equals((string)($_SESSION['admin_products_csrf'] ?? ''), (string)($_PO
 }
 $id = filter_var($_POST['product_id'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
 $page = max(1, (int)($_POST['return_page'] ?? 1));
+$sortMap = ['id', 'article', 'name', 'price', 'quantity', 'views', 'orders', 'ordered'];
+$sort = (string)($_POST['return_sort'] ?? '');
+$direction = strtoupper((string)($_POST['return_dir'] ?? ''));
+if (!in_array($sort, $sortMap, true) || !in_array($direction, ['ASC', 'DESC'], true)) {
+    $sort = '';
+    $direction = '';
+}
 if (!$id) {
     http_response_code(400);
     exit('Некорректный ID товара.');
@@ -25,24 +32,19 @@ $db = getDBConnection();
 try {
     $db->beginTransaction();
 
-    // Keep a list of uploaded product image filenames for safe cleanup after DB commit.
+    // Remember image names for safe cleanup after the database transaction commits.
     $stmt = $db->prepare('SELECT file_path FROM product_images WHERE product_id = ?');
     $stmt->execute([$id]);
     $imagePaths = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-    // Clean up junction tables explicitly; order_items are intentionally preserved
-    // (the schema sets their product_id to NULL on product deletion).
     foreach (['product_categories', 'product_components', 'product_promos', 'product_images'] as $table) {
         $db->prepare("DELETE FROM `$table` WHERE product_id = ?")->execute([$id]);
     }
     $stmt = $db->prepare('DELETE FROM products WHERE id = ?');
     $stmt->execute([$id]);
-    if ($stmt->rowCount() === 0) {
-        throw new RuntimeException('Товар не найден.');
-    }
+    if ($stmt->rowCount() === 0) throw new RuntimeException('Товар не найден.');
     $db->commit();
 
-    // Only remove simple filenames inside known upload directories; never follow arbitrary paths.
     $uploadRoot = realpath(__DIR__ . '/../uploads/products');
     if ($uploadRoot !== false) {
         foreach ($imagePaths as $imagePath) {
@@ -57,7 +59,12 @@ try {
         }
     }
 
-    header('Location: /admin/products.php?page=' . $page . '&deleted=1');
+    $query = ['page' => $page, 'deleted' => '1'];
+    if ($sort !== '') {
+        $query['sort'] = $sort;
+        $query['dir'] = $direction;
+    }
+    header('Location: /admin/products.php?' . http_build_query($query));
     exit;
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();
