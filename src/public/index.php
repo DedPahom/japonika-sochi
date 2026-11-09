@@ -53,11 +53,11 @@ require __DIR__ . '/templates/header.php';
                         <div class="product-card__image">
                             <img src="<?= !empty($product['main_image']) ? '/uploads/products/' . rawurlencode(basename($product['main_image'])) : '/assets/images/no-image.jpg' ?>" alt="<?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?>" loading="lazy">
                             <?php if (!$inStock): ?><span class="product-card__badge">Под заказ</span><?php endif; ?>
+                            <?php if (!empty($promoBadges[(int)$product['id']])): $promoBadge = $promoBadges[(int)$product['id']]; ?><span class="product-promo-badge product-promo-badge--overlay"<?= !empty($promoBadge['picture_url']) ? ' style="background-image:url(' . htmlspecialchars($promoBadge['picture_url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ')"' : '' ?>><?= htmlspecialchars($promoBadge['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= (int)$promoBadge['discount_percent'] ?>%<?= $promoBadge['type'] === 'quantity_discount' ? ' · от ' . (int)$promoBadge['min_quantity'] . ' шт.' : '' ?></span><?php endif; ?>
                         </div>
                         <div class="product-card__info">
                             <div class="product-card__article">Арт. <?= htmlspecialchars($product['article'], ENT_QUOTES, 'UTF-8') ?></div>
                             <h3 class="product-card__name"><?= htmlspecialchars($product['name'], ENT_QUOTES, 'UTF-8') ?></h3>
-                            <?php if (!empty($promoBadges[(int)$product['id']])): $promoBadge = $promoBadges[(int)$product['id']]; ?><span class="product-promo-badge">Акция: <?= htmlspecialchars($promoBadge['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= (int)$promoBadge['discount_percent'] ?>%<?= $promoBadge['type'] === 'quantity_discount' ? ' · от ' . (int)$promoBadge['min_quantity'] . ' шт.' : '' ?></span><?php endif; ?>
                             <div class="product-card__price"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽<?php if ($finalPrice < (float)$product['price']): ?> <del class="product-card__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</del><?php if ($appliedDiscount > 0): ?> <span class="price-discount">(<?= (int)$appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div>
                         </div>
                     </a>

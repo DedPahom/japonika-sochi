@@ -16,7 +16,7 @@ class Promotions
     {
         $db ??= getDBConnection();
         $now = self::nowLocal();
-        $stmt = $db->prepare("SELECT pr.id AS product_id, pr.no_discount, p.id AS promo_id, p.name, p.discount,
+        $stmt = $db->prepare("SELECT pr.id AS product_id, pr.no_discount, p.id AS promo_id, p.name, p.pub_name, p.picture, p.discount,
                     p.promotion_type, p.minimum_quantity, p.start_date, p.end_date
                 FROM promos p
                 JOIN product_promos pp ON pp.promo_id = p.id
@@ -24,6 +24,13 @@ class Promotions
                 WHERE p.enabled = 1 AND p.start_date <= ? AND p.end_date >= ?");
         $stmt->execute([$now, $now]);
         return array_values(array_filter($stmt->fetchAll(PDO::FETCH_ASSOC), static fn($r) => (int)$r['no_discount'] === 0));
+    }
+
+    private static function pictureUrl(string $filename): string
+    {
+        $filename = basename($filename);
+        if (!preg_match('/^[a-f0-9]{32}\.(?:jpg|png|webp|gif)$/', $filename)) return '';
+        return '/uploads/promotions/' . rawurlencode($filename);
     }
 
     /** Map product IDs to every currently active promo badge. */
@@ -37,7 +44,8 @@ class Promotions
             $productId = (int)$row['product_id'];
             if (!isset($wanted[$productId])) continue;
             $candidate = [
-                'title' => (string)$row['name'],
+                'title' => trim((string)($row['pub_name'] ?? '')) !== '' ? (string)$row['pub_name'] : (string)$row['name'],
+                'picture_url' => self::pictureUrl((string)($row['picture'] ?? '')),
                 'type' => (string)$row['promotion_type'],
                 'discount_percent' => (int)$row['discount'],
                 'min_quantity' => (int)$row['minimum_quantity'],

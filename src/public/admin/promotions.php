@@ -49,6 +49,31 @@ function promoAdminResolveProducts(PDO $db, array $guids): array
     foreach ($guids as $guid) $ids[] = (int)$found[$guid]['id'];
     return $ids;
 }
+function promoAdminStorePicture(array $file): string
+{
+    if (!isset($file['error']) || (int)$file['error'] === UPLOAD_ERR_NO_FILE) return '';
+    if ((int)$file['error'] !== UPLOAD_ERR_OK) throw new RuntimeException('Не удалось загрузить изображение плашки.');
+    if ((int)($file['size'] ?? 0) < 1 || (int)$file['size'] > 4 * 1024 * 1024) throw new RuntimeException('Изображение должно быть не больше 4 МБ.');
+    $tmp = (string)($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) throw new RuntimeException('Загруженный файл изображения не прошёл проверку.');
+    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp);
+    $extensions = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp','image/gif'=>'gif'];
+    if (!isset($extensions[$mime])) throw new RuntimeException('Поддерживаются только JPG, PNG, WebP и GIF (SVG не допускается).');
+    $directory = rtrim(UPLOAD_PATH, '/\\') . '/promotions';
+    if (!is_dir($directory) && !mkdir($directory, 0755, true) && !is_dir($directory)) throw new RuntimeException('Не удалось создать папку для изображений акций.');
+    if (!is_writable($directory)) throw new RuntimeException('Папка изображений акций недоступна для записи.');
+    $filename = bin2hex(random_bytes(16)) . '.' . $extensions[$mime];
+    if (!move_uploaded_file($tmp, $directory . '/' . $filename)) throw new RuntimeException('Не удалось сохранить изображение акции.');
+    return $filename;
+}
+function promoAdminDeletePicture(string $filename): void
+{
+    $filename = basename($filename);
+    if (!preg_match('/^[a-f0-9]{32}\.(?:jpg|png|webp|gif)$/', $filename)) return;
+    $path = rtrim(UPLOAD_PATH, '/\\') . '/promotions/' . $filename;
+    if (is_file($path)) @unlink($path);
+}
+
 function promoAdminSaveLinks(PDO $db, int $promoId, array $productIds): void
 {
     $db->prepare('DELETE FROM product_promos WHERE promo_id = ?')->execute([$promoId]);
@@ -74,12 +99,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $enabled=isset($_POST['enabled'])?1:0;
             $rawIds=preg_split('/[\\s,;]+/',trim((string)($_POST['product_onec_ids']??'')),-1,PREG_SPLIT_NO_EMPTY) ?: [];
             $productIds=promoAdminResolveProducts($db,$rawIds);
-            $db->beginTransaction();
-            if($id){$check=$db->prepare('SELECT id FROM promos WHERE id=? FOR UPDATE');$check->execute([(int)$id]);if(!$check->fetchColumn())throw new RuntimeException('Акция не найдена.');$db->prepare('UPDATE promos SET name=?,discount=?,start_date=?,end_date=?,promotion_type=?,minimum_quantity=?,enabled=? WHERE id=?')->execute([$title,$discount,$start.' 00:00:00',$end.' 23:59:59',$type,$min,$enabled,(int)$id]);$promoId=(int)$id;}
-            else{$db->prepare('INSERT INTO promos (name,discount,start_date,end_date,promotion_type,minimum_quantity,enabled,import_key) VALUES (?,?,?,?,?,?,?,NULL)')->execute([$title,$discount,$start.' 00:00:00',$end.' 23:59:59',$type,$min,$enabled]);$promoId=(int)$db->lastInsertId();}
-            promoAdminSaveLinks($db,$promoId,$productIds);$db->commit(); promoAdminRedirect('saved',$promoId);
+            $pubName=trim((string)($_POST['pub_name']??'')); if(mb_strlen($pubName,'UTF-8')>255)throw new RuntimeException('Pub_Name не может быть длиннее 255 символов.');
+            $existingPicture='';
+            if($id){$q=$db->prepare('SELECT picture FROM promos WHERE id=?');$q->execute([(int)$id]);$existingPicture=(string)($q->fetchColumn()?:'');}
+            $removePicture=isset($_POST['remove_picture']);
+            $newPicture=promoAdminStorePicture($_FILES['picture']??[]);
+            $picture=$newPicture!==''?$newPicture:($removePicture?'':$existingPicture);
+            $oldPictureToDelete=($existingPicture!==''&&$picture!==$existingPicture)?$existingPicture:'';
+            try {
+                $db->beginTransaction();
+                if($id){$check=$db->prepare('SELECT id FROM promos WHERE id=? FOR UPDATE');$check->execute([(int)$id]);if(!$check->fetchColumn())throw new RuntimeException('Акция не найдена.');$db->prepare('UPDATE promos SET name=?,pub_name=?,picture=?,discount=?,start_date=?,end_date=?,promotion_type=?,minimum_quantity=?,enabled=? WHERE id=?')->execute([$title,$pubName!==''?$pubName:null,$picture!==''?$picture:null,$discount,$start.' 00:00:00',$end.' 23:59:59',$type,$min,$enabled,(int)$id]);$promoId=(int)$id;}
+                else{$db->prepare('INSERT INTO promos (name,pub_name,picture,discount,start_date,end_date,promotion_type,minimum_quantity,enabled,import_key) VALUES (?,?,?,?,?,?,?,?,?,NULL)')->execute([$title,$pubName!==''?$pubName:null,$picture!==''?$picture:null,$discount,$start.' 00:00:00',$end.' 23:59:59',$type,$min,$enabled]);$promoId=(int)$db->lastInsertId();}
+                promoAdminSaveLinks($db,$promoId,$productIds);$db->commit();
+            } catch(Throwable $saveError) {
+                if($db->inTransaction())$db->rollBack();
+                if($newPicture!=='')promoAdminDeletePicture($newPicture);
+                throw $saveError;
+            }
+            if($oldPictureToDelete!=='')promoAdminDeletePicture($oldPictureToDelete);
+            promoAdminRedirect('saved',$promoId);
         } elseif ($action === 'delete') {
-            $id=filter_var($_POST['promo_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);if(!$id)throw new RuntimeException('Некорректный ID акции.');$db->prepare('DELETE FROM promos WHERE id=?')->execute([(int)$id]);promoAdminRedirect('deleted');
+            $id=filter_var($_POST['promo_id']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);if(!$id)throw new RuntimeException('Некорректный ID акции.');$q=$db->prepare('SELECT picture FROM promos WHERE id=?');$q->execute([(int)$id]);$pictureToDelete=(string)($q->fetchColumn()?:'');$db->prepare('DELETE FROM promos WHERE id=?')->execute([(int)$id]);if($pictureToDelete!=='')promoAdminDeletePicture($pictureToDelete);promoAdminRedirect('deleted');
         }
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
@@ -98,8 +138,12 @@ $pageTitle='Акции — Админ-панель'; require __DIR__.'/../templa
     <?php if($notice): ?><div class="admin-notice"><?=promoAdminH($notice)?></div><?php endif; ?>
     <?php if($error!==''): ?><div class="alert alert--error"><?=promoAdminH($error)?></div><?php endif; ?>
     <section class="promo-admin-panel"><div class="promo-admin-heading"><h2><?= $editing ? 'Редактировать акцию' : 'Создать акцию вручную' ?></h2><?php if($editing): ?><a class="btn btn--small" href="/admin/promotions.php">Новая акция</a><?php endif; ?></div>
-        <form method="post" class="promo-admin-form"><input type="hidden" name="csrf" value="<?=promoAdminH($csrf)?>"><input type="hidden" name="action" value="save"><input type="hidden" name="promo_id" value="<?= (int)($editing['id']??0) ?>">
+        <form method="post" enctype="multipart/form-data" class="promo-admin-form"><input type="hidden" name="csrf" value="<?=promoAdminH($csrf)?>"><input type="hidden" name="action" value="save"><input type="hidden" name="promo_id" value="<?= (int)($editing['id']??0) ?>">
             <label>Название акции<input name="title" maxlength="255" required value="<?=promoAdminH($editing['name']??'')?>"></label>
+            <label>Pub_Name — текст плашки <small>Необязательно. Если заполнено, на плашке будет показано это имя вместо названия акции.</small><input name="pub_name" maxlength="255" value="<?=promoAdminH($editing['pub_name']??'')?>"></label>
+            <label>Picture — изображение подложки плашки <small>Необязательно. JPG, PNG, WebP или GIF, максимум 4 МБ.</small><input type="file" name="picture" accept="image/jpeg,image/png,image/webp,image/gif">
+                <?php if (!empty($editing['picture']) && preg_match('/^[a-f0-9]{32}\.(?:jpg|png|webp|gif)$/', (string)$editing['picture'])): ?><span class="promo-admin-picture-preview"><img src="/uploads/promotions/<?=rawurlencode((string)$editing['picture'])?>" alt="Текущая подложка плашки"><span class="promo-admin-check"><input type="checkbox" name="remove_picture" value="1"> Удалить текущее изображение</span></span><?php endif; ?>
+            </label>
             <div class="promo-admin-grid"><label>Тип<select name="type"><option value="product_discount" <?=($editing['promotion_type']??'product_discount')==='product_discount'?'selected':''?>>Скидка на товар</option><option value="quantity_discount" <?=($editing['promotion_type']??'')==='quantity_discount'?'selected':''?>>Скидка от количества группы</option></select></label><label>Скидка, %<input type="number" min="1" max="99" name="discount_percent" required value="<?= (int)($editing['discount']??10) ?>"></label><label>Порог количества (для групповой акции)<input type="number" min="2" max="100000" name="min_quantity" value="<?= (int)($editing['minimum_quantity']??10) ?>"></label></div>
             <div class="promo-admin-grid"><label>Начало, Москва<input type="date" name="start_date" required value="<?=promoAdminH(isset($editing['start_date'])?substr($editing['start_date'],0,10):date('Y-m-d'))?>"></label><label>Окончание, Москва<input type="date" name="end_date" required value="<?=promoAdminH(isset($editing['end_date'])?substr($editing['end_date'],0,10):date('Y-m-d'))?>"></label></div>
             <label class="promo-admin-check"><input type="checkbox" name="enabled" value="1" <?=!isset($editing['enabled'])||(int)$editing['enabled']===1?'checked':''?>> Акция включена</label>

@@ -11,9 +11,9 @@ $csrf = (string)$_SESSION['promotion_import_csrf'];
 $stageKey = 'promotion_import_stage';
 
 function promoImportH(mixed $value): string { return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-function promoImportRedirect(string $notice): void
+function promoImportRedirect(string $notice, array $extra = []): void
 {
-    header('Location: /admin/import-promotions.php?' . http_build_query(['notice' => $notice]));
+    header('Location: /admin/import-promotions.php?' . http_build_query(array_merge(['notice' => $notice], $extra)));
     exit;
 }
 
@@ -79,12 +79,11 @@ function promoImportNormalizeJson(PDO $db, string $json): array
         $guids = $row['product_onec_ids'] ?? null;
         if (!is_array($guids) || !$guids || count($guids) > 5000) throw new RuntimeException("Акция {$line}: product_onec_ids должен быть непустым массивом.");
         $productIds = promoImportResolveProducts($db, $guids);
-        $externalId = trim((string)($row['promotion_id'] ?? ''));
-        if ($externalId !== '' && !preg_match('/^[A-Za-z0-9._:-]{1,80}$/', $externalId)) throw new RuntimeException("Акция {$line}: promotion_id содержит недопустимые символы.");
-        // The supplied example has no ID; stable key from type+title makes repeated uploads update that promo.
-        $identity = $externalId !== '' ? 'id:' . $externalId : 'title:' . mb_strtolower($title, 'UTF-8');
-        $importKey = 'json:' . hash('sha256', $type . "\0" . $identity);
-        if (isset($keys[$importKey])) throw new RuntimeException("Акция {$line}: повторяется promotion_id или пара type + title.");
+        // The promotion title is the stable identifier in the generated JSON.
+        // Ignore legacy promotion_id fields if present; new files do not need them.
+        $titleKey = mb_strtolower($title, 'UTF-8');
+        $importKey = 'json:title:' . hash('sha256', $titleKey);
+        if (isset($keys[$importKey])) throw new RuntimeException("Акция {$line}: название акции повторяется в файле; названия должны быть уникальны.");
         $keys[$importKey] = true;
         $normalized[] = ['type'=>$type,'title'=>$title,'discount_percent'=>$discount,'start_date'=>$start,'end_date'=>$end,'enabled'=>$enabled,'min_quantity'=>$minimum,'product_ids'=>$productIds,'import_key'=>$importKey];
     }
@@ -98,7 +97,13 @@ function promoImportSaveLinks(PDO $db, int $promoId, array $productIds): void
     foreach (array_unique(array_map('intval', $productIds)) as $productId) $stmt->execute([$productId, $promoId]);
 }
 
-$notice = (string)($_GET['notice'] ?? '') === 'imported' ? 'Импорт завершён: акции обновлены или созданы, список товаров синхронизирован.' : '';
+$noticeMap = ['imported' => 'Импорт завершён: акции обновлены или созданы, список товаров синхронизирован.', 'stage_expired' => 'Черновик импорта не найден или истёк. Пожалуйста, выберите JSON-файл и проверьте его ещё раз.'];
+$noticeKey = (string)($_GET['notice'] ?? '');
+$notice = $noticeMap[$noticeKey] ?? '';
+if ($noticeKey === 'imported') {
+    $importedCount = filter_var($_GET['count'] ?? null, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0]]);
+    if ($importedCount !== false && $importedCount !== null) $notice .= ' Обработано акций: ' . (int)$importedCount . '.';
+}
 $error = '';
 $preview = null;
 
@@ -113,30 +118,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($raw === false) throw new RuntimeException('Не удалось прочитать файл.');
             $promos = promoImportNormalizeJson($db, $raw);
             if (!$promos) throw new RuntimeException('В JSON нет акций для импорта.');
-            $stagePath = tempnam(sys_get_temp_dir(), 'promotions-import-');
-            if ($stagePath === false || file_put_contents($stagePath, json_encode($promos, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), LOCK_EX) === false) throw new RuntimeException('Не удалось сохранить файл предпросмотра.');
-            @chmod($stagePath, 0600);
-            if (!empty($_SESSION[$stageKey]) && is_file((string)$_SESSION[$stageKey])) @unlink((string)$_SESSION[$stageKey]);
-            $_SESSION[$stageKey] = $stagePath;
+            $stagedJson = json_encode($promos, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            if (strlen($stagedJson) > 10 * 1024 * 1024) throw new RuntimeException('Подготовленный импорт превышает 10 МБ. Разделите акции на несколько файлов.');
+            // Keep the validated, normalized draft in the admin session rather than a temp
+            // file: hosting temp cleaners or multiple web workers can make /tmp disappear.
+            $_SESSION[$stageKey] = $stagedJson;
             $preview = ['count'=>count($promos),'products'=>array_sum(array_map(static fn($p)=>count($p['product_ids']),$promos)),'items'=>$promos];
         } elseif ($action === 'confirm_import') {
-            $path = (string)($_SESSION[$stageKey] ?? '');
-            unset($_SESSION[$stageKey]);
-            if ($path === '' || !is_file($path)) promoImportRedirect('stage_expired');
-            $promos = json_decode((string)file_get_contents($path), true, 512, JSON_THROW_ON_ERROR);
-            @unlink($path);
+            $stagedJson = (string)($_SESSION[$stageKey] ?? '');
+            if ($stagedJson === '') promoImportRedirect('stage_expired');
+            $promos = json_decode($stagedJson, true, 512, JSON_THROW_ON_ERROR);
+            if (!is_array($promos) || !$promos) promoImportRedirect('stage_expired');
             $db->beginTransaction();
             try {
                 $find = $db->prepare('SELECT id FROM promos WHERE import_key = ? LIMIT 1');
+                $legacyFind = $db->prepare('SELECT id FROM promos WHERE import_key IN (?, ?) ORDER BY id LIMIT 1');
                 foreach ($promos as $p) {
                     $startAt = $p['start_date'] . ' 00:00:00';
                     $endAt = $p['end_date'] . ' 23:59:59';
                     $find->execute([$p['import_key']]);
                     $id = $find->fetchColumn();
+                    if ($id === false) {
+                        // Compatibility with imports made before promotion_id was removed:
+                        // their keys were based on type + title.
+                        $legacyKeys = [];
+                        foreach (['product_discount', 'quantity_discount'] as $legacyType) {
+                            $legacyKeys[] = 'json:' . hash('sha256', $legacyType . "\0" . 'title:' . mb_strtolower((string)$p['title'], 'UTF-8'));
+                        }
+                        $legacyFind->execute($legacyKeys);
+                        $id = $legacyFind->fetchColumn();
+                    }
                     if ($id !== false) {
                         $promoId = (int)$id;
-                        $db->prepare('UPDATE promos SET name=?,discount=?,start_date=?,end_date=?,promotion_type=?,minimum_quantity=?,enabled=? WHERE id=?')
-                            ->execute([$p['title'],$p['discount_percent'],$startAt,$endAt,$p['type'],$p['min_quantity'],(int)$p['enabled'],$promoId]);
+                        $db->prepare('UPDATE promos SET name=?,discount=?,start_date=?,end_date=?,promotion_type=?,minimum_quantity=?,enabled=?,import_key=? WHERE id=?')
+                            ->execute([$p['title'],$p['discount_percent'],$startAt,$endAt,$p['type'],$p['min_quantity'],(int)$p['enabled'],$p['import_key'],$promoId]);
                     } else {
                         $db->prepare('INSERT INTO promos (name,discount,start_date,end_date,promotion_type,minimum_quantity,enabled,import_key) VALUES (?,?,?,?,?,?,?,?)')
                             ->execute([$p['title'],$p['discount_percent'],$startAt,$endAt,$p['type'],$p['min_quantity'],(int)$p['enabled'],$p['import_key']]);
@@ -145,11 +160,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     promoImportSaveLinks($db, $promoId, $p['product_ids']);
                 }
                 $db->commit();
+                unset($_SESSION[$stageKey]);
             } catch (Throwable $e) {
                 if ($db->inTransaction()) $db->rollBack();
                 throw $e;
             }
-            promoImportRedirect('imported');
+            promoImportRedirect('imported', ['count' => count($promos)]);
         } else {
             throw new RuntimeException('Неизвестное действие формы.');
         }
@@ -160,11 +176,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if (!$preview && !empty($_SESSION[$stageKey]) && is_file((string)$_SESSION[$stageKey])) {
-    $staged = json_decode((string)file_get_contents((string)$_SESSION[$stageKey]), true);
+if (!$preview && !empty($_SESSION[$stageKey])) {
+    $staged = json_decode((string)$_SESSION[$stageKey], true);
     if (is_array($staged)) $preview = ['count'=>count($staged),'products'=>array_sum(array_map(static fn($p)=>count($p['product_ids'] ?? []),$staged)),'items'=>$staged];
-} elseif (!empty($_SESSION[$stageKey])) {
-    unset($_SESSION[$stageKey]);
 }
 
 $pageTitle = 'Импорт акций — Админ-панель';
@@ -175,7 +189,7 @@ require __DIR__ . '/../templates/header.php';
     <?php if ($notice): ?><div class="admin-notice"><?= promoImportH($notice) ?></div><?php endif; ?>
     <?php if ($error !== ''): ?><div class="alert alert--error"><?= promoImportH($error) ?></div><?php endif; ?>
     <section class="promo-admin-panel"><h2>Загрузить JSON из 1С</h2>
-        <p>Выберите файл с акциями. Файл будет проверен до изменения базы; после успешной проверки потребуется подтвердить импорт.</p>
+        <p>Выберите файл с акциями. После проверки подтвердите импорт; затем появится сообщение о результате и число обработанных акций.</p>
         <form method="post" enctype="multipart/form-data" class="promo-admin-upload">
             <input type="hidden" name="csrf" value="<?= promoImportH($csrf) ?>">
             <input type="hidden" name="action" value="upload_preview">
@@ -195,7 +209,7 @@ require __DIR__ . '/../templates/header.php';
     </section>
     <section class="promo-admin-panel"><h2>Правила импорта</h2><ul>
         <li>Поддерживаются типы <code>product_discount</code> и <code>quantity_discount</code>.</li>
-        <li>Вторую загрузку той же акции связывайте через неизменный <code>promotion_id</code>; если ID не задан, используется сочетание типа и названия.</li>
+        <li>Идентификатором акции служит её название. Повторная загрузка акции с тем же названием обновляет её запись и список товаров. Названия в одном файле должны быть уникальными.</li>
         <li>Импорт обновляет только акции из файла; отсутствующие в JSON акции не удаляются.</li>
         <li>Даты интерпретируются по Москве: начало — 00:00, окончание — 23:59:59 включительно.</li>
     </ul></section>
