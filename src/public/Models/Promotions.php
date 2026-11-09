@@ -43,8 +43,10 @@ class Promotions
         foreach (self::activeRows() as $row) {
             $productId = (int)$row['product_id'];
             if (!isset($wanted[$productId])) continue;
+            $customTitle = trim((string)($row['pub_name'] ?? ''));
             $candidate = [
-                'title' => trim((string)($row['pub_name'] ?? '')) !== '' ? (string)$row['pub_name'] : (string)$row['name'],
+                'title' => $customTitle !== '' ? $customTitle : (string)$row['name'],
+                'has_custom_title' => $customTitle !== '',
                 'picture_url' => self::pictureUrl((string)($row['picture'] ?? '')),
                 'type' => (string)$row['promotion_type'],
                 'discount_percent' => (int)$row['discount'],
