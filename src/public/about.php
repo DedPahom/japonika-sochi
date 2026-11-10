@@ -13,25 +13,11 @@ require __DIR__ . '/templates/header.php';
         <p>Безопасность, эффективность и экономичность — принципы, на которые мы опираемся при создании ассортимента. Здесь вы найдёте всё необходимое для ухода за собой и за домом.</p>
     </header>
 
-    <section class="about-values" aria-label="Наши принципы">
-        <article class="about-value"><span aria-hidden="true">✦</span><h2>Безопасность</h2><p>Внимательно подходим к выбору товаров для ежедневного ухода и дома.</p></article>
-        <article class="about-value"><span aria-hidden="true">◎</span><h2>Эффективность</h2><p>Подбираем ассортимент, который помогает решать повседневные задачи.</p></article>
-        <article class="about-value"><span aria-hidden="true">♡</span><h2>Экономичность</h2><p>Стараемся, чтобы полезные покупки были разумными и удобными.</p></article>
-    </section>
-
     <section class="about-delivery" aria-labelledby="delivery-title">
         <div class="about-delivery__icon" aria-hidden="true">↗</div>
         <div>
             <h2 id="delivery-title">Доставка</h2>
-            <p>Доставляем товары по Сочи, а заказы по России и странам СНГ отправляем транспортными компаниями.</p>
-        </div>
-    </section>
-
-    <section class="about-contact" aria-labelledby="contact-title">
-        <div>
-            <h2 id="contact-title">Связаться с нами</h2>
-            <p>Напишите нам на электронную почту:</p>
-            <a href="mailto:shop@mail.japonika-sochi.ru">shop@mail.japonika-sochi.ru</a>
+            <p>Доставляем товары по Сочи сами, а заказы по России и странам СНГ отправляем транспортными компаниями. От 5000 доставка включена.</p>
         </div>
     </section>
 
@@ -49,8 +35,7 @@ require __DIR__ . '/templates/header.php';
                     <h3>Магазин на Воровского</h3>
                     <address>г. Сочи, ул. Воровского, 6</address>
                     <p class="about-shop__note">Вход со стороны пересечения ул. Парковой и ул. Воровского, 1 этаж.</p>
-                    <p class="about-shop__note">Тел. для связи : +7 (967) 304-38-38</p>
-                    <p class="about-shop__hours"><span aria-hidden="true">◷</span><strong>Ежедневно</strong> 10:00–21:00</p>
+                    <p class="about-shop__hours"><span aria-hidden="true">◷</span><strong>Ежедневно</strong> 09:00–21:00</p>
                     <p class="about-shop__break">Без перерыва</p>
                     <a class="about-shop__map-link" href="https://yandex.ru/maps/-/CXv9yBz0" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Картах <span aria-hidden="true">↗</span></a>
                 </div>
@@ -65,9 +50,8 @@ require __DIR__ . '/templates/header.php';
                     <h3>Магазин в Дагомысе</h3>
                     <address>г. Сочи, Батумское шоссе, 41, корпус 1</address>
                     <p class="about-shop__note">Павильон расположен рядом с магазином «Магнит».</p>
-                    <p class="about-shop__note">Тел. для связи : +7 (988) 287-02-11</p>
                     <p class="about-shop__hours"><span aria-hidden="true">◷</span><strong>Ежедневно</strong> 10:00–20:00</p>
-                    <p class="about-shop__break">Перерыв 13:00–14:00</p>
+                    <p class="about-shop__break">Без перерыва</p>
                     <a class="about-shop__map-link" href="https://yandex.ru/maps/-/CXv9uHkU" target="_blank" rel="noopener noreferrer">Открыть в Яндекс Картах <span aria-hidden="true">↗</span></a>
                 </div>
                 <div class="about-shop__map-wrap">
