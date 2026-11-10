@@ -1,6 +1,9 @@
 # Включаем mod_rewrite
 RewriteEngine On
 
+# Для API доступен и прямой URL /api/1c/v1/stocks.php.
+RewriteRule ^api/1c/v1/stocks/?$ api/1c/v1/stocks.php [END,QSA]
+
 # Старый адрес каталога перенаправляем на главную сайта.
 # Работают оба варианта: /catalog и /catalog/
 RewriteRule ^catalog/?$ / [R=301,L]
