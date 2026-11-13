@@ -6,9 +6,9 @@
 declare(strict_types=1);
 
 const DB_HOST = 'localhost';
-const DB_NAME = 'u2956522_japonika_db';
-const DB_USER = 'u2956522_japonika_admin';
-const DB_PASS = 'xM6dR8aK3xsW6yJ1'; 
+const DB_NAME = '11111111111_japonika_db';
+const DB_USER = '11111111111_japonika_admin';
+const DB_PASS = '1111111111111111'; 
 
 const DB_CHARSET = 'utf8mb4';
 
