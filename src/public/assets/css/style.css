@@ -2058,3 +2058,252 @@ a:hover { color: var(--brand-green-hover); }
     background-repeat: no-repeat;
     background-size: cover;
 }
+
+/* Страница товара: выровнять количество, покупку и ссылку редактирования */
+.product__actions {
+    display: grid;
+    grid-template-columns: 64px minmax(180px, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.product__actions .quick-buy__quantity {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+}
+
+.product__actions .quick-buy__button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+}
+
+.product__actions > a {
+    justify-self: end;
+    white-space: nowrap;
+}
+
+/* На узком экране — компактная строка покупки,
+   а редактирование переносится ниже */
+@media (max-width: 600px) {
+    .product__actions {
+        grid-template-columns: 64px minmax(0, 1fr);
+    }
+
+    .product__actions > a {
+        grid-column: 1 / -1;
+        justify-self: start;
+    }
+}
+
+/* Add this block at the END of src/public/assets/css/style.css.
+   It scopes the rules to the product detail page only. */
+.product-page .product .product__info .product__actions.product-card__quick-buy {
+    display: grid !important;
+    grid-template-columns: 72px minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0;
+}
+
+.product-page .product__actions .quick-buy__quantity {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+}
+
+.product-page .product__actions .quick-buy__button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    justify-content: center;
+}
+
+/* Admin edit link sits neatly below the purchase controls, aligned right. */
+.product-page .product__actions .admin-product-edit {
+    grid-column: 1 / -1;
+    justify-self: end;
+    margin-top: 0;
+}
+
+@media (max-width: 420px) {
+    .product-page .product .product__info .product__actions.product-card__quick-buy {
+        grid-template-columns: 60px minmax(0, 1fr);
+        gap: 8px;
+    }
+}
+
+/* Desktop header search. Append this block to the END of assets/css/style.css. */
+.header-search {
+    display: flex;
+    flex: 0 1 240px;
+    min-width: 155px;
+    height: 40px;
+    margin: 0 18px;
+    overflow: hidden;
+    background: #f6f8f1;
+    border: 1px solid #dce5cb;
+    border-radius: 10px;
+}
+
+.header-search input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    padding: 0 11px;
+    color: #333;
+    background: transparent;
+    border: 0;
+    outline: none;
+    font: inherit;
+    font-size: 14px;
+    -webkit-appearance: none;
+}
+
+.header-search input::placeholder { color: #8b9380; }
+.header-search input:focus { box-shadow: inset 0 0 0 2px rgba(111,146,43,.16); }
+
+.header-search button {
+    display: grid;
+    flex: 0 0 42px;
+    place-items: center;
+    color: #fff;
+    background: #6f922b;
+    border: 0;
+    cursor: pointer;
+}
+
+.header-search button:hover { background: #5d7d22; }
+.header-search button svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+}
+
+@media (max-width: 1000px) and (min-width: 761px) {
+    .header-search { flex-basis: 175px; min-width: 130px; margin-inline: 10px; }
+    .header .nav { gap: 11px; }
+    .header .logo { font-size: 21px; }
+}
+
+@media (max-width: 760px) {
+    .header-search { display: none; }
+}
+
+/* Catalog section cards: botanical marker + warm brand gradient.
+   Append to src/public/assets/css/style.css. */
+.category-nav__link {
+    background: linear-gradient(135deg, #fffaf2 0%, #f3f7e8 52%, #fff1f5 100%);
+    border-color: #e7e8d8;
+}
+
+.category-nav__link::before {
+    content: "❧";
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    color: #64852b;
+    background: linear-gradient(145deg, #e5efcf 0%, #f8f4df 55%, #f8dfe8 100%);
+    border: 1px solid rgba(111, 146, 43, .16);
+    border-radius: 50% 50% 50% 12px;
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 23px;
+    line-height: 1;
+    transform: rotate(-12deg);
+}
+
+.category-nav__link:hover {
+    background: linear-gradient(135deg, #f9f3df 0%, #e6efd1 52%, #f8e1e9 100%);
+    border-color: #cbd8ae;
+}
+
+.category-nav__link:hover::before {
+    color: #fff;
+    background: linear-gradient(145deg, #7b9d3a 0%, #6f922b 55%, #bd7187 100%);
+}
+
+@media (max-width: 700px) {
+    .category-nav__link::before {
+        flex-basis: 34px;
+        width: 34px;
+        height: 34px;
+        font-size: 21px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .category-nav__link { transition: none; }
+}
+
+/* Symmetric category tiles, preserving the previous card dimensions.
+   Append AFTER the prior category styling blocks in style.css. */
+.catalog .category-nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 210px);
+    justify-content: center;
+    align-items: stretch;
+    gap: 12px;
+    overflow: visible;
+    padding: 4px 2px 16px;
+    scrollbar-width: none;
+}
+
+.catalog .category-nav::-webkit-scrollbar { display: none; }
+
+.catalog .category-nav__link {
+    display: flex;
+    width: 210px;
+    min-width: 210px;
+    min-height: 88px;
+    box-sizing: border-box;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    text-align: center;
+}
+
+.catalog .category-nav__link::before {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    margin: 0;
+}
+
+.catalog .category-nav__link::after { content: none; }
+
+@media (max-width: 700px) {
+    .catalog .category-nav {
+        grid-template-columns: repeat(auto-fit, 178px);
+        justify-content: center;
+        gap: 9px;
+        overflow: visible;
+        padding: 4px 2px 12px;
+    }
+
+    .catalog .category-nav__link {
+        width: 178px;
+        min-width: 178px;
+        min-height: 76px;
+        padding: 8px 9px;
+        border-radius: 13px;
+        font-size: 14px;
+    }
+
+    .catalog .category-nav__link::before {
+        flex-basis: 34px;
+        width: 34px;
+        height: 34px;
+        font-size: 21px;
+    }
+}

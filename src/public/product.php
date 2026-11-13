@@ -88,18 +88,29 @@ require __DIR__ . '/templates/header.php';
             <?php if ($promoBadge): ?><div class="product-promo-badge product-promo-badge--detail"<?= !empty($promoBadge['picture_url']) ? ' style="background-image:url(' . htmlspecialchars($promoBadge['picture_url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . ')"' : '' ?>><?= empty($promoBadge['has_custom_title']) ? 'Участник акции: ' : '' ?><?= htmlspecialchars($promoBadge['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?><?php if (empty($promoBadge['has_custom_title'])): ?> · <?= (int)$promoBadge['discount_percent'] ?>%<?= $promoBadge['type'] === 'quantity_discount' ? ' · скидка от ' . (int)$promoBadge['min_quantity'] . ' шт.' : '' ?><?php endif; ?></div><?php endif; ?>
             <?php if ($categories): ?><div class="product__categories">Категории: <?php foreach ($categories as $cat): ?><span class="product__category"><?= htmlspecialchars($cat['name'], ENT_QUOTES, 'UTF-8') ?></span><?php endforeach; ?></div><?php endif; ?>
             <div class="product__price"><span class="product__price-value"><?= number_format($finalPrice, 0, '.', ' ') ?> ₽</span><?php if ($finalPrice < (float)$product['price']): ?><span class="product__price-old"><?= number_format((float)$product['price'], 0, '.', ' ') ?> ₽</span><?php if ($appliedDiscount > 0): ?><span class="price-discount">(<?= $appliedDiscount ?>%)</span><?php endif; ?><?php endif; ?></div>
-            <div class="product__stock"><?php if ($inStock): ?><span class="product__stock-status product__stock-status--in product__stock-status--meter" style="--stock-hue: <?= $stockHue ?>">✓ В наличии</span><?php else: ?><span class="product__stock-status product__stock-status--out">Под заказ</span><?php endif; ?>
-                <div class="product__actions product-card__quick-buy">
-                    <label class="visually-hidden" for="product-quantity">Количество</label>
-                    <input id="product-quantity" class="quick-buy__quantity" type="number" min="1" max="999" value="1" inputmode="numeric">
-                    <button type="button" class="btn btn--primary quick-buy__button" data-cart-add="<?= (int)$product['id'] ?>" data-cart-csrf="<?= htmlspecialchars($cartCsrf, ENT_QUOTES, 'UTF-8') ?>">🛒 В корзину</button>
-                    <?php if ($isAdmin): ?><a class="btn btn--small admin-product-edit" href="/admin/product-edit.php?id=<?= (int)$product['id'] ?>">✏️ Редактировать</a><?php endif; ?>
-                </div>
+            <div class="product__stock">
+                <?php if ($inStock): ?>
+                    <span class="product__stock-status product__stock-status--in product__stock-status--meter" style="--stock-hue: <?= $stockHue ?>">✓ В наличии</span>
+                <?php else: ?>
+                    <span class="product__stock-status product__stock-status--out">Под заказ</span>
+                <?php endif; ?>
             </div>
-            <?php if (!empty($product['description'])): ?></div><?php endif; ?>
+
+            <div class="product__actions product-card__quick-buy">
+                <label class="visually-hidden" for="product-quantity">Количество</label>
+                <input id="product-quantity" class="quick-buy__quantity" type="number" min="1" max="999" value="1" inputmode="numeric">
+                <button type="button" class="btn btn--primary quick-buy__button" data-cart-add="<?= (int)$product['id'] ?>" data-cart-csrf="<?= htmlspecialchars($cartCsrf, ENT_QUOTES, 'UTF-8') ?>">🛒 В корзину</button>
+                <?php if ($isAdmin): ?><a class="btn btn--small admin-product-edit" href="/admin/product-edit.php?id=<?= (int)$product['id'] ?>">✏️ Редактировать</a><?php endif; ?>
+            </div>
         </div>
-        <div class="product__description"><h3>Описание</h3><?= nl2br(htmlspecialchars($product['description'], ENT_QUOTES, 'UTF-8')) ?>
     </div>
+
+    <?php if (!empty($product['description'])): ?>
+        <div class="product__description">
+            <h3>Описание</h3>
+            <?= nl2br(htmlspecialchars($product['description'], ENT_QUOTES, 'UTF-8')) ?>
+        </div>
+    <?php endif; ?>
 </div>
 <?php if ($images): ?><script src="/assets/js/product-gallery.js" defer></script><?php endif; ?>
 <?php require __DIR__ . '/templates/footer.php'; ?>

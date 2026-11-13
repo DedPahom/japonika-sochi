@@ -33,6 +33,9 @@ function parseCatalog(string $json): array
 
     $groups = [];
     $errors = [];
+    // Category names are assumed globally unique. Track their expected parent
+    // across the whole file and reject inconsistent paths before writing.
+    $categoryParents = [];
     foreach ($data['products'] as $index => $row) {
         $line = $index + 1;
         if (!is_array($row)) { $errors[] = "Запись {$line}: ожидался объект."; continue; }
@@ -66,6 +69,19 @@ function parseCatalog(string $json): array
             $segments = array_map('trim', explode('##', $path));
             if (count($segments) > 12 || in_array('', $segments, true)) { $errors[] = "Запись {$line}: некорректный category_path (пустой уровень или больше 12 уровней)."; continue; }
             foreach ($segments as $segment) if (mb_strlen($segment) > 255) { $errors[] = "Запись {$line}: имя категории длиннее 255 символов."; continue 2; }
+
+            $pathConflict = false;
+            foreach ($segments as $segmentIndex => $segment) {
+                $categoryKey = mb_strtolower($segment, 'UTF-8');
+                $parentKey = $segmentIndex === 0 ? '' : mb_strtolower($segments[$segmentIndex - 1], 'UTF-8');
+                if (isset($categoryParents[$categoryKey]) && $categoryParents[$categoryKey] !== $parentKey) {
+                    $errors[] = "Запись {$line}: категория «{$segment}» указана с разными родителями. При глобально уникальных названиях это означает противоречивый category_path.";
+                    $pathConflict = true;
+                    break;
+                }
+                $categoryParents[$categoryKey] = $parentKey;
+            }
+            if ($pathConflict) continue;
         } else { $errors[] = "Запись {$line}: отсутствует category_path."; continue; }
 
         $key = strtolower($guid);
@@ -106,31 +122,61 @@ function makeSlug(string $name): string
 
 function getOrCreateCategory(PDO $db, string $name, ?int $parentId, array &$cache): int
 {
-    $cacheKey = ($parentId ?? 0) . '|' . mb_strtolower($name, 'UTF-8');
-    if (isset($cache[$cacheKey])) return $cache[$cacheKey];
-    if ($parentId === null) {
-        $stmt = $db->prepare('SELECT id FROM categories WHERE parent_id IS NULL AND name = ? LIMIT 1');
-        $stmt->execute([$name]);
+    // Category names are globally unique in the source catalog, so identity is
+    // the normalized name alone, not (parent_id, name).
+    $cacheKey = mb_strtolower(trim($name), 'UTF-8');
+    if (isset($cache[$cacheKey])) {
+        $categoryId = $cache[$cacheKey];
     } else {
-        $stmt = $db->prepare('SELECT id FROM categories WHERE parent_id = ? AND name = ? LIMIT 1');
-        $stmt->execute([$parentId, $name]);
-    }
-    $id = $stmt->fetchColumn();
-    if ($id !== false) return $cache[$cacheKey] = (int)$id;
+        $find = $db->prepare('SELECT id, parent_id FROM categories WHERE name = ? ORDER BY id LIMIT 2');
+        $find->execute([$name]);
+        $matches = $find->fetchAll(PDO::FETCH_ASSOC);
+        if (count($matches) > 1) {
+            failImport("В базе уже есть несколько категорий с названием «{$name}». Сначала объедините/удалите дубли категорий, затем повторите импорт.");
+        }
 
-    $base = makeSlug($name);
-    $slug = $base;
-    $n = 2;
-    while (true) {
-        $check = $db->prepare('SELECT id FROM categories WHERE slug = ? LIMIT 1');
-        $check->execute([$slug]);
-        if ($check->fetchColumn() === false) break;
-        $suffix = '-' . $n++;
-        $slug = substr($base, 0, 190 - strlen($suffix)) . $suffix;
+        if ($matches) {
+            $categoryId = (int)$matches[0]['id'];
+            $currentParentId = $matches[0]['parent_id'] === null ? null : (int)$matches[0]['parent_id'];
+            if ($currentParentId !== $parentId) {
+                // Refuse to create a cycle if a stale tree has this category
+                // (or one of its descendants) as the requested parent.
+                $ancestorId = $parentId;
+                $findParent = $db->prepare('SELECT parent_id FROM categories WHERE id = ?');
+                $steps = 0;
+                while ($ancestorId !== null && $steps++ < 100) {
+                    if ($ancestorId === $categoryId) {
+                        failImport("Нельзя переместить категорию «{$name}»: это создало бы цикл в дереве категорий.");
+                    }
+                    $findParent->execute([$ancestorId]);
+                    $ancestor = $findParent->fetchColumn();
+                    $ancestorId = $ancestor === false || $ancestor === null ? null : (int)$ancestor;
+                }
+                if ($steps >= 100) {
+                    failImport("Не удалось проверить иерархию категории «{$name}»: обнаружена слишком длинная или циклическая цепочка.");
+                }
+                $move = $db->prepare('UPDATE categories SET parent_id = ? WHERE id = ?');
+                $move->execute([$parentId, $categoryId]);
+            }
+        } else {
+            $base = makeSlug($name);
+            $slug = $base;
+            $n = 2;
+            while (true) {
+                $check = $db->prepare('SELECT id FROM categories WHERE slug = ? LIMIT 1');
+                $check->execute([$slug]);
+                if ($check->fetchColumn() === false) break;
+                $suffix = '-' . $n++;
+                $slug = substr($base, 0, 190 - strlen($suffix)) . $suffix;
+            }
+            $insert = $db->prepare('INSERT INTO categories (name, slug, parent_id) VALUES (?, ?, ?)');
+            $insert->execute([$name, $slug, $parentId]);
+            $categoryId = (int)$db->lastInsertId();
+        }
+        $cache[$cacheKey] = $categoryId;
     }
-    $insert = $db->prepare('INSERT INTO categories (name, slug, parent_id) VALUES (?, ?, ?)');
-    $insert->execute([$name, $slug, $parentId]);
-    return $cache[$cacheKey] = (int)$db->lastInsertId();
+
+    return $categoryId;
 }
 
 function applyCatalog(PDO $db, array $groups): array

@@ -29,6 +29,13 @@ $accountLabel = isset($_SESSION['admin_id']) ? 'Админка' : 'Кабине�
                 <img class="logo__image" src="/assets/images/logo.png" alt="Логотип Японика" width="46" height="46">
                 <span><?= htmlspecialchars(SITE_NAME, ENT_QUOTES, 'UTF-8') ?></span>
             </a>
+            <form class="header-search" action="/search.php" method="get" role="search">
+                <label class="visually-hidden" for="header-search-query">Поиск товаров</label>
+                <input id="header-search-query" type="search" name="q" value="<?= htmlspecialchars($searchValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Найти товар или артикул" enterkeyhint="search">
+                <button type="submit" aria-label="Искать">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg>
+                </button>
+            </form>
             <nav class="nav" aria-label="Основная навигация">
                 <a href="/" class="nav__link">Главная</a>
                 <a href="/catalog.php" class="nav__link">Каталог</a>
