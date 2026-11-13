@@ -1,3 +1,10 @@
+# Секреты и локальная конфигурация
+/src/public/config/database.php
+/src/private/onec_api.php
+/.env
+/.env.*
+!/.env.example
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -24,10 +31,16 @@ vendor/
 .env.local
 
 # Uploads (пользовательские файлы)
-uploads/
+/src/public/uploads/
 
 # Конфигурация с паролями
 src/config/database.php
 
 # Загруженные файлы
 src/public/uploads/
+
+# Резервные копии и дампы баз данных
+*.sql.gz
+*.dump
+*.bak
+*.backup
