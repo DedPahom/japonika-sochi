@@ -13,7 +13,6 @@ $limiter = new AuthRateLimiter($db);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!hash_equals($login_csrf, (string)($_POST['csrf'] ?? ''))) { http_response_code(403); exit('Сессия формы истекла. Обновите страницу.'); }
-    if (trim((string)($_POST['website_url'] ?? '')) !== '') { http_response_code(400); exit('Не удалось обработать форму.'); }
     $rawPhone = trim((string)($_POST['phone'] ?? ''));
     $phone = Phone::normalizeRussian($rawPhone);
     $rateIdentity = $phone ?? $rawPhone;
@@ -64,7 +63,6 @@ require __DIR__ . '/templates/header.php';
     <?php if ($error): ?><div class="alert alert--error"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div><?php endif; ?>
     <form method="post" class="form">
         <input type="hidden" name="csrf" value="<?= htmlspecialchars($login_csrf, ENT_QUOTES, 'UTF-8') ?>">
-        <div class="security-honeypot" aria-hidden="true"><label for="login_website-url">Не заполняйте это поле</label><input id="login_website-url" type="text" name="website_url" value="" tabindex="-1" autocomplete="off"></div>
         <div class="form__group"><label for="phone">Телефон:</label><input type="tel" id="phone" name="phone" required autocomplete="tel" placeholder="+7 999 999-99-99" value="<?= htmlspecialchars((string)($_POST['phone'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></div>
         <div class="form__group"><label for="password">Пароль:</label><input type="password" id="password" name="password" required autocomplete="current-password"></div>
         <button type="submit" class="btn btn--primary">Войти</button>
