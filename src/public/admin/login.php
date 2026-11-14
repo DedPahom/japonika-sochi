@@ -8,7 +8,11 @@ require_once __DIR__ . '/../Models/AuthRateLimiter.php';
 $db = getDBConnection();
 $limiter = new AuthRateLimiter($db);
 $error = '';
+if (empty($_SESSION['admin_csrf'])) $_SESSION['admin_csrf'] = bin2hex(random_bytes(32));
+$admin_csrf = (string)$_SESSION['admin_csrf'];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!hash_equals($admin_csrf, (string)($_POST['csrf'] ?? ''))) { http_response_code(403); exit('Сессия формы истекла. Обновите страницу.'); }
+    if (trim((string)($_POST['website_url'] ?? '')) !== '') { http_response_code(400); exit('Не удалось обработать форму.'); }
     $rawPhone = trim((string)($_POST['phone'] ?? ''));
     $phone = Phone::normalizeRussian($rawPhone);
     $rateIdentity = $phone ?? $rawPhone;
@@ -53,6 +57,8 @@ require __DIR__ . '/../templates/header.php';
     <?php if (isset($_GET['revoked'])): ?><div class="alert alert--error">Права администратора отозваны или аккаунт заблокирован.</div><?php endif; ?>
     <?php if ($error): ?><div class="alert alert--error"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div><?php endif; ?>
     <form method="post" class="form">
+        <input type="hidden" name="csrf" value="<?= htmlspecialchars($admin_csrf, ENT_QUOTES, 'UTF-8') ?>">
+        <div class="security-honeypot" aria-hidden="true"><label for="admin_website-url">Не заполняйте это поле</label><input id="admin_website-url" type="text" name="website_url" value="" tabindex="-1" autocomplete="off"></div>
         <div class="form__group"><label for="phone">Телефон:</label><input type="tel" id="phone" name="phone" required autocomplete="tel" value="<?= htmlspecialchars((string)($_POST['phone'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></div>
         <div class="form__group"><label for="password">Пароль:</label><input type="password" id="password" name="password" required autocomplete="current-password"></div>
         <button type="submit" class="btn btn--primary">Войти</button>

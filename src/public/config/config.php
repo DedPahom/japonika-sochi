@@ -13,6 +13,7 @@ const UPLOAD_PATH = PUBLIC_PATH . '/uploads';
 // Пагинация
 const PRODUCTS_PER_PAGE = 20;
 
-// Включаем отображение ошибок (для разработки)
-ini_set('display_errors', '1');
+// Production: do not disclose PHP warnings/errors to visitors. Log them server-side instead.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 error_reporting(E_ALL);

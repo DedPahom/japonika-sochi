@@ -2307,3 +2307,12 @@ a:hover { color: var(--brand-green-hover); }
         font-size: 21px;
     }
 }
+
+.security-honeypot {
+    position: absolute !important;
+    left: -10000px !important;
+    top: auto !important;
+    width: 1px !important;
+    height: 1px !important;
+    overflow: hidden !important;
+}
