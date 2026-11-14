@@ -2,7 +2,8 @@
 declare(strict_types=1);
 
 /**
- * 1C stock snapshot endpoint.
+ * 1C full catalog + stock snapshot endpoint.
+ * New GUIDs are created when complete catalog fields are supplied; existing GUIDs only get quantity updates.
  * Deploy as: src/public/api/1c/v1/stocks.php
  * Secret file: src/private/onec_api.php (outside the public web root).
  */
@@ -82,6 +83,118 @@ function onecStocksReleaseLock(?PDO $db, bool &$lockAcquired): void
     $lockAcquired = false;
 }
 
+/** Build a URL-safe category slug, matching the catalog importer. */
+function onecStocksMakeSlug(string $name): string
+{
+    $value = function_exists('iconv') ? iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $name) : $name;
+    $value = strtolower((string)$value);
+    $value = preg_replace('/[^a-z0-9]+/', '-', $value) ?? '';
+    $value = trim($value, '-');
+    return $value !== '' ? substr($value, 0, 180) : 'category';
+}
+
+/** Find or create a globally unique category name under the requested parent. */
+function onecStocksGetOrCreateCategory(PDO $db, string $name, ?int $parentId, array &$cache, int &$createdCount): int
+{
+    $cacheKey = mb_strtolower(trim($name), 'UTF-8');
+    if (isset($cache[$cacheKey])) {
+        $categoryId = $cache[$cacheKey];
+        $parentStmt = $db->prepare('SELECT parent_id FROM categories WHERE id = ?');
+        $parentStmt->execute([$categoryId]);
+        $currentParent = $parentStmt->fetchColumn();
+        $currentParent = $currentParent === false || $currentParent === null ? null : (int)$currentParent;
+        if ($currentParent !== $parentId) {
+            throw new OneCStocksApiProblem(409, 'category_path_conflict', "Категория «{$name}» указана в снимке с разными родителями.");
+        }
+        return $categoryId;
+    }
+
+    $find = $db->prepare('SELECT id, parent_id FROM categories WHERE name = ? ORDER BY id LIMIT 2');
+    $find->execute([$name]);
+    $matches = $find->fetchAll(PDO::FETCH_ASSOC);
+    if (count($matches) > 1) {
+        throw new OneCStocksApiProblem(409, 'duplicate_category_name', "В каталоге несколько категорий «{$name}»; импорт остановлен.");
+    }
+
+    if ($matches) {
+        $categoryId = (int)$matches[0]['id'];
+        $currentParent = $matches[0]['parent_id'] === null ? null : (int)$matches[0]['parent_id'];
+        if ($currentParent !== $parentId) {
+            // Keep the existing category tree intact; do not silently move categories via stock exchange.
+            throw new OneCStocksApiProblem(409, 'category_path_conflict', "Категория «{$name}» уже находится в другой ветке каталога.");
+        }
+    } else {
+        $base = onecStocksMakeSlug($name);
+        $slug = $base;
+        $suffixNo = 2;
+        while (true) {
+            $check = $db->prepare('SELECT id FROM categories WHERE slug = ? LIMIT 1');
+            $check->execute([$slug]);
+            if ($check->fetchColumn() === false) break;
+            $suffix = '-' . $suffixNo++;
+            $slug = substr($base, 0, 190 - strlen($suffix)) . $suffix;
+        }
+        $insert = $db->prepare('INSERT INTO categories (name, slug, parent_id) VALUES (?, ?, ?)');
+        $insert->execute([$name, $slug, $parentId]);
+        $categoryId = (int)$db->lastInsertId();
+        $createdCount++;
+    }
+
+    $cache[$cacheKey] = $categoryId;
+    return $categoryId;
+}
+
+/** Validate catalog fields needed only when an incoming GUID is not yet in products. */
+function onecStocksPrepareNewProduct(array $row, int $line): ?array
+{
+    $catalogFields = ['article', 'name', 'price', 'category_path', 'description'];
+    $hasCatalogData = false;
+    foreach ($catalogFields as $field) {
+        if (array_key_exists($field, $row)) { $hasCatalogData = true; break; }
+    }
+    // Keep compatibility with stock-only clients: unknown GUID without catalog fields remains reported, not created.
+    if (!$hasCatalogData) return null;
+
+    $article = trim((string)($row['article'] ?? ''));
+    $name = trim((string)($row['name'] ?? ''));
+    $priceRaw = str_replace(',', '.', trim((string)($row['price'] ?? '')));
+    $pathRaw = trim((string)($row['category_path'] ?? ''));
+    $description = trim((string)($row['description'] ?? ''));
+
+    if ($article === '' || mb_strlen($article, 'UTF-8') > 100) {
+        throw new OneCStocksApiProblem(422, 'invalid_article', "Строка {$line}: для нового товара article обязателен и должен быть не длиннее 100 символов.");
+    }
+    if ($name === '' || mb_strlen($name, 'UTF-8') > 500) {
+        throw new OneCStocksApiProblem(422, 'invalid_name', "Строка {$line}: для нового товара name обязателен и должен быть не длиннее 500 символов.");
+    }
+    if (!preg_match('/^\d{1,8}(?:\.\d{1,2})?$/', $priceRaw)) {
+        throw new OneCStocksApiProblem(422, 'invalid_price', "Строка {$line}: для нового товара price обязателен (до 8 цифр до точки и 2 после).");
+    }
+    if ($pathRaw === '') {
+        throw new OneCStocksApiProblem(422, 'invalid_category_path', "Строка {$line}: для нового товара обязателен category_path с разделителем ##.");
+    }
+    $segments = array_map('trim', explode('##', $pathRaw));
+    if (count($segments) > 12 || in_array('', $segments, true)) {
+        throw new OneCStocksApiProblem(422, 'invalid_category_path', "Строка {$line}: category_path должен содержать от 1 до 12 непустых уровней через ##.");
+    }
+    foreach ($segments as $segment) {
+        if (mb_strlen($segment, 'UTF-8') > 255) {
+            throw new OneCStocksApiProblem(422, 'invalid_category_path', "Строка {$line}: имя категории в category_path длиннее 255 символов.");
+        }
+    }
+    if (strlen($description) > 60000) {
+        throw new OneCStocksApiProblem(422, 'invalid_description', "Строка {$line}: description слишком длинный для поля товара.");
+    }
+
+    return [
+        'article' => $article,
+        'name' => $name,
+        'price' => number_format((float)$priceRaw, 2, '.', ''),
+        'description' => $description !== '' ? $description : null,
+        'category_segments' => $segments,
+    ];
+}
+
 $db = null;
 $lockAcquired = false;
 $inTransaction = false;
@@ -155,6 +268,7 @@ try {
     }
 
     $snapshot = [];
+    $productRows = [];
     foreach ($data['products'] as $index => $row) {
         $line = $index + 1;
         if (!is_array($row)) {
@@ -179,6 +293,7 @@ try {
             throw new OneCStocksApiProblem(422, 'invalid_quantity', "Строка {$line}: quantity вне диапазона поля базы данных.");
         }
         $snapshot[$onecId] = $quantity;
+        $productRows[$onecId] = $row;
     }
 
     $db = getDBConnection();
@@ -196,16 +311,59 @@ try {
     $knownRows = $find->fetchAll(PDO::FETCH_ASSOC);
     $knownByGuid = [];
     foreach ($knownRows as $row) $knownByGuid[(string)$row['onec_id']] = (int)$row['id'];
-    if (!$knownByGuid) {
-        throw new OneCStocksApiProblem(409, 'no_known_products', 'Ни один onec_id из снимка не найден в каталоге. Остатки не изменены; проверьте сопоставление GUID.');
+
+    $unknownIds = array_values(array_diff($guids, array_keys($knownByGuid)));
+    $db->beginTransaction();
+    $inTransaction = true;
+
+    $createdProducts = 0;
+    $createdCategories = 0;
+    $categoryCache = [];
+    $findArticle = $db->prepare('SELECT id FROM products WHERE article = ? LIMIT 1');
+    $insertProduct = $db->prepare('INSERT INTO products (onec_id, article, name, description, price, quantity) VALUES (?, ?, ?, ?, ?, ?)');
+    $insertProductCategory = $db->prepare('INSERT INTO product_categories (product_id, category_id) VALUES (?, ?)');
+
+    foreach ($unknownIds as $guid) {
+        $line = array_search($guid, $guids, true) + 1;
+        $newProduct = onecStocksPrepareNewProduct($productRows[$guid], $line);
+        if ($newProduct === null) continue; // Legacy stock-only request; report as unknown.
+
+        $findArticle->execute([$newProduct['article']]);
+        if ($findArticle->fetchColumn() !== false) {
+            throw new OneCStocksApiProblem(409, 'article_conflict', "Строка {$line}: артикул уже есть в каталоге. Товар не создан, чтобы не нарушить уникальность артикула.");
+        }
+
+        $parentId = null;
+        $leafCategoryId = null;
+        foreach ($newProduct['category_segments'] as $segment) {
+            $leafCategoryId = onecStocksGetOrCreateCategory($db, $segment, $parentId, $categoryCache, $createdCategories);
+            $parentId = $leafCategoryId;
+        }
+        if ($leafCategoryId === null) {
+            throw new OneCStocksApiProblem(422, 'invalid_category_path', "Строка {$line}: category_path пуст.");
+        }
+
+        $insertProduct->execute([
+            $guid,
+            $newProduct['article'],
+            $newProduct['name'],
+            $newProduct['description'],
+            $newProduct['price'],
+            $snapshot[$guid],
+        ]);
+        $productId = (int)$db->lastInsertId();
+        $insertProductCategory->execute([$productId, $leafCategoryId]);
+        $knownByGuid[$guid] = $productId;
+        $createdProducts++;
     }
 
     $unknownIds = array_values(array_diff($guids, array_keys($knownByGuid)));
+    if (!$knownByGuid) {
+        throw new OneCStocksApiProblem(409, 'no_known_products', 'Ни один onec_id из снимка не найден или не создан. Передайте полный каталог с обязательными полями для новых товаров. Остатки не изменены.');
+    }
+
     $knownGuids = array_keys($knownByGuid);
     $knownMarks = implode(',', array_fill(0, count($knownGuids), '?'));
-
-    $db->beginTransaction();
-    $inTransaction = true;
 
     $update = $db->prepare('UPDATE products SET quantity = ? WHERE id = ?');
     $changedFromSnapshot = 0;
@@ -228,10 +386,12 @@ try {
 
     $unknownForLog = count($unknownIds) > 0 ? ' unknown_ids=' . implode(',', array_slice($unknownIds, 0, 50)) : '';
     $summary = sprintf(
-        'request_id=%s received=%d matched=%d unknown=%d absent_from_snapshot=%d changed_from_snapshot=%d changed_to_zero=%d%s',
+        'request_id=%s received=%d matched=%d created=%d categories_created=%d unknown=%d absent_from_snapshot=%d changed_from_snapshot=%d changed_to_zero=%d%s',
         $requestId,
         $receivedCount,
         count($knownByGuid),
+        $createdProducts,
+        $createdCategories,
         count($unknownIds),
         $missingFromSnapshot,
         $changedFromSnapshot,
@@ -245,6 +405,8 @@ try {
         'request_id' => $requestId,
         'received' => $receivedCount,
         'matched' => count($knownByGuid),
+        'products_created' => $createdProducts,
+        'categories_created' => $createdCategories,
         'unknown_ids' => $unknownIds,
         'products_absent_from_snapshot' => $missingFromSnapshot,
         'stocks_changed_from_snapshot' => $changedFromSnapshot,
