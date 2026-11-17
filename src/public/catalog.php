@@ -11,6 +11,11 @@ require_once __DIR__ . '/Models/Promotions.php';
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 $isAdmin = isset($_SESSION['admin_id']);
 $userDiscount = CustomerPricing::currentDiscount();
+$imageFilter = 'all';
+if ($isAdmin) {
+    $requestedImageFilter = (string)($_GET['image_filter'] ?? 'all');
+    if (in_array($requestedImageFilter, ['all', 'with', 'without'], true)) $imageFilter = $requestedImageFilter;
+}
 $page = max(1, (int)($_GET['page'] ?? 1));
 $sort = (string)($_GET['sort'] ?? 'popular');
 if (!in_array($sort, ['popular', 'article', 'cheaper', 'expensive'], true)) $sort = 'popular';
@@ -23,12 +28,12 @@ $categories = $category ? Category::getChildren((int)$category['id']) : Category
 $path = $category ? Category::getPath((int)$category['id']) : [];
 
 if ($category) {
-    $products = Category::getProducts((int)$category['id'], $includeDescendants, $page, PRODUCTS_PER_PAGE, $sort);
-    $totalProducts = Category::countProducts((int)$category['id'], $includeDescendants);
+    $products = Category::getProducts((int)$category['id'], $includeDescendants, $page, PRODUCTS_PER_PAGE, $sort, $imageFilter);
+    $totalProducts = Category::countProducts((int)$category['id'], $includeDescendants, $imageFilter);
     $pageTitle = $category['name'] . ' — Каталог — ' . SITE_NAME;
 } else {
-    $products = Product::getList($page, PRODUCTS_PER_PAGE, $sort);
-    $totalProducts = Product::getTotalCount();
+    $products = Product::getList($page, PRODUCTS_PER_PAGE, $sort, $imageFilter);
+    $totalProducts = Product::getTotalCount($imageFilter);
     $pageTitle = 'Каталог — ' . SITE_NAME;
 }
 $promoBadges = Promotions::badgesByProductIds(array_column($products, 'id'));
@@ -36,6 +41,7 @@ $totalPages = (int)ceil($totalProducts / PRODUCTS_PER_PAGE);
 $cartCsrf = Cart::csrfToken();
 $baseQuery = $category ? 'category=' . rawurlencode($category['slug']) : '';
 $modeQuery = $category ? '&scope=' . ($includeDescendants ? 'all' : 'current') : '';
+$imageFilterQuery = $isAdmin && $imageFilter !== 'all' ? '&amp;image_filter=' . rawurlencode($imageFilter) : '';
 require __DIR__ . '/templates/header.php';
 ?>
 <div class="catalog">
@@ -49,12 +55,12 @@ require __DIR__ . '/templates/header.php';
         <a class="btn btn--small category-back" href="<?= $parent ? '/catalog.php?category=' . rawurlencode($parent['slug']) : '/catalog.php' ?>">← <?= $parent ? 'Назад' : 'Все разделы' ?></a>
     <?php endif; ?>
     <?php if ($categories): ?><nav class="category-nav" aria-label="Подразделы">
-        <?php foreach ($categories as $item): ?><a class="category-nav__link" href="/catalog.php?category=<?= rawurlencode($item['slug']) ?>"><?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?>
+        <?php foreach ($categories as $item): ?><a class="category-nav__link" href="/catalog.php?category=<?= rawurlencode($item['slug']) ?><?= $imageFilterQuery ?>"><?= htmlspecialchars($item['name'], ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?>
     </nav><?php endif; ?>
     <?php if ($category): ?><div class="catalog-scope" role="group" aria-label="Какие товары показывать">
         <span>Показать:</span>
-        <a class="catalog-scope__link <?= !$includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=current&amp;sort=<?= rawurlencode($sort) ?>">Только в этом разделе</a>
-        <a class="catalog-scope__link <?= $includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=all&amp;sort=<?= rawurlencode($sort) ?>">Включая вложенные</a>
+        <a class="catalog-scope__link <?= !$includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=current&amp;sort=<?= rawurlencode($sort) ?><?= $imageFilterQuery ?>">Только в этом разделе</a>
+        <a class="catalog-scope__link <?= $includeDescendants ? 'is-active' : '' ?>" href="?category=<?= rawurlencode($category['slug']) ?>&amp;scope=all&amp;sort=<?= rawurlencode($sort) ?><?= $imageFilterQuery ?>">Включая вложенные</a>
     </div><?php endif; ?>
     <form class="catalog-sort" method="get" action="/catalog.php">
         <?php if ($category): ?><input type="hidden" name="category" value="<?= htmlspecialchars((string)$category['slug'], ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="scope" value="<?= $includeDescendants ? 'all' : 'current' ?>"><?php endif; ?>
@@ -66,6 +72,15 @@ require __DIR__ . '/templates/header.php';
                 <option value="expensive" <?= $sort === 'expensive' ? 'selected' : '' ?>>Дороже</option>
             </select>
         </label>
+        <?php if ($isAdmin): ?>
+            <label for="catalog-image-filter">Картинка
+                <select id="catalog-image-filter" name="image_filter" onchange="this.form.submit()">
+                    <option value="all" <?= $imageFilter === 'all' ? 'selected' : '' ?>>Все товары</option>
+                    <option value="with" <?= $imageFilter === 'with' ? 'selected' : '' ?>>С картинкой</option>
+                    <option value="without" <?= $imageFilter === 'without' ? 'selected' : '' ?>>Без картинки</option>
+                </select>
+            </label>
+        <?php endif; ?>
         <noscript><button class="btn btn--small" type="submit">Применить</button></noscript>
     </form>
     <?php if (!$products): ?><p class="catalog__empty"><?= $category ? 'В этом режиме товаров нет.' : 'Пока нет товаров.' ?></p>
@@ -85,7 +100,7 @@ require __DIR__ . '/templates/header.php';
             </article>
         <?php endforeach; ?>
     </div>
-    <?php if ($totalPages > 1): ?><div class="pagination"><?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?<?= $baseQuery ?><?= $baseQuery ? '&amp;' : '' ?>page=<?= $i ?><?= $modeQuery ?>&amp;sort=<?= rawurlencode($sort) ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?></div><?php endif; ?>
+    <?php if ($totalPages > 1): ?><div class="pagination"><?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?<?= $baseQuery ?><?= $baseQuery ? '&amp;' : '' ?>page=<?= $i ?><?= $modeQuery ?>&amp;sort=<?= rawurlencode($sort) ?><?= $imageFilterQuery ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?></div><?php endif; ?>
     <?php endif; ?>
 </div>
 <?php require __DIR__ . '/templates/footer.php'; ?>

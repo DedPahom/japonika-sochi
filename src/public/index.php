@@ -15,10 +15,15 @@ $userDiscount = CustomerPricing::currentDiscount();
 $page = max(1, (int)($_GET['page'] ?? 1));
 $sort = (string)($_GET['sort'] ?? 'popular');
 if (!in_array($sort, ['popular', 'article', 'cheaper', 'expensive'], true)) $sort = 'popular';
+$imageFilter = 'all';
+if ($isAdmin) {
+    $requestedImageFilter = (string)($_GET['image_filter'] ?? 'all');
+    if (in_array($requestedImageFilter, ['all', 'with', 'without'], true)) $imageFilter = $requestedImageFilter;
+}
 $categories = Category::getRoots();
-$products = Product::getList($page, PRODUCTS_PER_PAGE, $sort);
+$products = Product::getList($page, PRODUCTS_PER_PAGE, $sort, $imageFilter);
 $promoBadges = Promotions::badgesByProductIds(array_column($products, 'id'));
-$totalProducts = Product::getTotalCount();
+$totalProducts = Product::getTotalCount($imageFilter);
 $totalPages = (int)ceil($totalProducts / PRODUCTS_PER_PAGE);
 $cartCsrf = Cart::csrfToken();
 $pageTitle = SITE_NAME . ' — Каталог';
@@ -28,7 +33,7 @@ require __DIR__ . '/templates/header.php';
     <h1 class="catalog__title">Каталог товаров</h1>
     <nav class="category-nav" aria-label="Разделы каталога">
         <?php foreach ($categories as $category): ?>
-            <a class="category-nav__link" href="/catalog.php?category=<?= rawurlencode($category['slug']) ?>"><?= htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8') ?></a>
+            <a class="category-nav__link" href="/catalog.php?category=<?= rawurlencode($category['slug']) ?><?= $isAdmin && $imageFilter !== 'all' ? '&amp;image_filter=' . rawurlencode($imageFilter) : '' ?>"><?= htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8') ?></a>
         <?php endforeach; ?>
     </nav>
     <h2 class="catalog__subtitle">Все товары</h2>
@@ -41,6 +46,15 @@ require __DIR__ . '/templates/header.php';
                 <option value="expensive" <?= $sort === 'expensive' ? 'selected' : '' ?>>Дороже</option>
             </select>
         </label>
+        <?php if ($isAdmin): ?>
+            <label for="catalog-image-filter">Картинка
+                <select id="catalog-image-filter" name="image_filter" onchange="this.form.submit()">
+                    <option value="all" <?= $imageFilter === 'all' ? 'selected' : '' ?>>Все товары</option>
+                    <option value="with" <?= $imageFilter === 'with' ? 'selected' : '' ?>>С картинкой</option>
+                    <option value="without" <?= $imageFilter === 'without' ? 'selected' : '' ?>>Без картинки</option>
+                </select>
+            </label>
+        <?php endif; ?>
         <noscript><button class="btn btn--small" type="submit">Применить</button></noscript>
     </form>
     <?php if (!$products): ?>
@@ -71,7 +85,7 @@ require __DIR__ . '/templates/header.php';
             <?php endforeach; ?>
         </div>
         <?php if ($totalPages > 1): ?><div class="pagination">
-            <?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?page=<?= $i ?>&amp;sort=<?= rawurlencode($sort) ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?>
+            <?php for ($i=1; $i<=$totalPages; $i++): ?><a href="?page=<?= $i ?>&amp;sort=<?= rawurlencode($sort) ?><?= $isAdmin && $imageFilter !== 'all' ? '&amp;image_filter=' . rawurlencode($imageFilter) : '' ?>" class="pagination__link <?= $i===$page?'pagination__link--active':'' ?>"><?= $i ?></a><?php endfor; ?>
         </div><?php endif; ?>
     <?php endif; ?>
 </div>

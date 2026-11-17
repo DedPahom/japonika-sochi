@@ -11,7 +11,7 @@ class Product
     /**
      * Получить товары с пагинацией
      */
-    public static function getList(int $page = 1, int $perPage = PRODUCTS_PER_PAGE, string $sort = 'popular'): array
+    public static function getList(int $page = 1, int $perPage = PRODUCTS_PER_PAGE, string $sort = 'popular', string $imageFilter = 'all'): array
     {
         $db = getDBConnection();
         $offset = max(0, ($page - 1) * $perPage);
@@ -21,11 +21,17 @@ class Product
             'expensive' => 'p.price DESC, p.article ASC, p.id ASC',
             default => 'COALESCE(p.order_count, 0) DESC, COALESCE(p.ordered_quantity, 0) DESC, COALESCE(p.view_count, 0) DESC, p.article ASC, p.id ASC',
         };
+        $imageWhere = match ($imageFilter) {
+            'with' => 'WHERE EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = p.id)',
+            'without' => 'WHERE NOT EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = p.id)',
+            default => '',
+        };
 
-        // In-stock products are always listed before preorder/out-of-stock products.
+        // Image filtering uses any assigned image; the card still displays the configured main image.
         $sql = "SELECT p.*, COALESCE(pi.file_path, '') AS main_image
                 FROM products p
                 LEFT JOIN product_images pi ON p.id = pi.product_id AND pi.sort_order = 0
+                {$imageWhere}
                 ORDER BY CASE WHEN p.quantity > 0 THEN 0 ELSE 1 END, {$sortOrder}
                 LIMIT :limit OFFSET :offset";
 
@@ -63,10 +69,15 @@ class Product
     /**
      * Получить общее количество товаров
      */
-    public static function getTotalCount(): int
+    public static function getTotalCount(string $imageFilter = 'all'): int
     {
         $db = getDBConnection();
-        return (int) $db->query("SELECT COUNT(*) FROM products")->fetchColumn();
+        $where = match ($imageFilter) {
+            'with' => 'WHERE EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = products.id)',
+            'without' => 'WHERE NOT EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = products.id)',
+            default => '',
+        };
+        return (int) $db->query("SELECT COUNT(*) FROM products {$where}")->fetchColumn();
     }
 
     /**

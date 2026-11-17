@@ -107,7 +107,7 @@ class Category
         return array_map('intval', array_keys($result));
     }
 
-    public static function getProducts(int $categoryId, bool $includeDescendants, int $page = 1, int $perPage = PRODUCTS_PER_PAGE, string $sort = 'popular'): array
+    public static function getProducts(int $categoryId, bool $includeDescendants, int $page = 1, int $perPage = PRODUCTS_PER_PAGE, string $sort = 'popular', string $imageFilter = 'all'): array
     {
         $ids = self::getScopeIds($categoryId, $includeDescendants);
         if (!$ids) return [];
@@ -119,9 +119,14 @@ class Category
             'expensive' => 'p.price DESC, p.article ASC, p.id ASC',
             default => 'COALESCE(p.order_count, 0) DESC, COALESCE(p.ordered_quantity, 0) DESC, COALESCE(p.view_count, 0) DESC, p.article ASC, p.id ASC',
         };
+        $imageCondition = match ($imageFilter) {
+            'with' => 'AND EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = p.id)',
+            'without' => 'AND NOT EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = p.id)',
+            default => '',
+        };
         $sql = "SELECT p.*, COALESCE((SELECT pi.file_path FROM product_images pi WHERE pi.product_id=p.id ORDER BY pi.sort_order, pi.id LIMIT 1), '') AS main_image
                 FROM products p
-                WHERE p.id IN (SELECT DISTINCT pc.product_id FROM product_categories pc WHERE pc.category_id IN ($marks))
+                WHERE p.id IN (SELECT DISTINCT pc.product_id FROM product_categories pc WHERE pc.category_id IN ($marks)) {$imageCondition}
                 ORDER BY CASE WHEN p.quantity > 0 THEN 0 ELSE 1 END, {$sortOrder} LIMIT ? OFFSET ?";
         $stmt = getDBConnection()->prepare($sql);
         $params = array_merge($ids, [$perPage, $offset]);
@@ -130,12 +135,17 @@ class Category
         return $stmt->fetchAll();
     }
 
-    public static function countProducts(int $categoryId, bool $includeDescendants): int
+    public static function countProducts(int $categoryId, bool $includeDescendants, string $imageFilter = 'all'): int
     {
         $ids = self::getScopeIds($categoryId, $includeDescendants);
         if (!$ids) return 0;
         $marks = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = getDBConnection()->prepare("SELECT COUNT(DISTINCT pc.product_id) FROM product_categories pc WHERE pc.category_id IN ($marks)");
+        $imageCondition = match ($imageFilter) {
+            'with' => 'AND EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = pc.product_id)',
+            'without' => 'AND NOT EXISTS (SELECT 1 FROM product_images image_filter WHERE image_filter.product_id = pc.product_id)',
+            default => '',
+        };
+        $stmt = getDBConnection()->prepare("SELECT COUNT(DISTINCT pc.product_id) FROM product_categories pc WHERE pc.category_id IN ($marks) {$imageCondition}");
         $stmt->execute($ids);
         return (int)$stmt->fetchColumn();
     }
