@@ -16,8 +16,10 @@ RewriteEngine On
     Deny from all
 </FilesMatch>
 
-# Для API доступен и прямой URL /api/1c/v1/stocks.php.
+# Для API доступны прямые URL с .php и короткие адреса.
 RewriteRule ^api/1c/v1/stocks/?$ api/1c/v1/stocks.php [END,QSA]
+RewriteRule ^api/1c/v1/promotions/?$ api/1c/v1/promotions.php [END,QSA]
+RewriteRule ^api/1c/v1/users/?$ api/1c/v1/users.php [END,QSA]
 
 # Старый адрес каталога перенаправляем на главную сайта.
 # Работают оба варианта: /catalog и /catalog/
