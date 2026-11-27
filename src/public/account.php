@@ -24,9 +24,9 @@ $user = $stmt->fetch();
 
 // Получаем заказы пользователя
 $stmt = $db->prepare("
-    SELECT o.*, 
-           COUNT(oi.id) as items_count,
-           SUM(oi.quantity * oi.price_final) as total_sum
+    SELECT o.*,
+           COUNT(oi.id) AS items_count,
+           COALESCE(SUM(oi.quantity * oi.price_final), o.total_final) AS total_sum
     FROM orders o
     LEFT JOIN order_items oi ON o.id = oi.order_id
     WHERE o.user_id = ?
@@ -72,20 +72,21 @@ require __DIR__ . '/templates/header.php';
                 <tbody>
                     <?php foreach ($orders as $order): ?>
                         <tr>
-                            <td><?= htmlspecialchars((string)$order['order_number']) ?></td>
+                            <td><?= (int)$order['id'] ?></td>
                             <td><?= date('d.m.Y', strtotime($order['created_at'])) ?></td>
                             <td><?= (int)$order['items_count'] ?></td>
                             <td><?= number_format((float)$order['total_sum'], 0, '.', ' ') ?> ₽</td>
                             <td>
-                                <span class="order-status order-status--<?= htmlspecialchars((string)$order['status']) ?>">
+                                <span class="order-status order-status--<?= in_array($order['status'], ['Новый', 'Получен'], true) ? 'new' : ($order['status'] === 'Закрыт' ? 'closed' : 'active') ?>">
                                     <?php
                                     $statuses = [
-                                        'new' => 'Новый',
-                                        'processing' => 'В обработке',
-                                        'confirmed' => 'Подтверждён',
-                                        'shipped' => 'Отправлен',
-                                        'delivered' => 'Доставлен',
-                                        'cancelled' => 'Отменён'
+                                        'Новый' => 'Новый',
+                                        'Получен' => 'Получен',
+                                        'В работе' => 'В работе',
+                                        'Согласован' => 'Согласован',
+                                        'На выполнении' => 'На выполнении',
+                                        'Отправлен' => 'Отправлен',
+                                        'Закрыт' => 'Закрыт'
                                     ];
                                     echo $statuses[$order['status']] ?? $order['status'];
                                     ?>
@@ -141,11 +142,8 @@ require __DIR__ . '/templates/header.php';
 }
 
 .order-status--new { background: #e3f2fd; color: #1565c0; }
-.order-status--processing { background: #fff3e0; color: #e65100; }
-.order-status--confirmed { background: #e8f5e9; color: #2e7d32; }
-.order-status--shipped { background: #f3e5f5; color: #7b1fa2; }
-.order-status--delivered { background: #e8f5e9; color: #1b5e20; }
-.order-status--cancelled { background: #ffebee; color: #c62828; }
+.order-status--active { background: #e8f5e9; color: #2e7d32; }
+.order-status--closed { background: #eeeeee; color: #424242; }
 </style>
 
 <?php require __DIR__ . '/templates/footer.php'; ?>

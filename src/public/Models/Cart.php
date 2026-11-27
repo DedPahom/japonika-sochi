@@ -246,7 +246,7 @@ class Cart
 
             $comment = trim((string)($contact['comment'] ?? ''));
             $orderStmt = $db->prepare("INSERT INTO orders (user_id, phone, name, comment, status, total_retail, total_final)
-                VALUES (?, ?, ?, ?, '', ?, ?)");
+                VALUES (?, ?, ?, ?, 'Новый', ?, ?)");
             $orderStmt->execute([$userId, $phone, $name, $comment !== '' ? $comment : null, number_format($totalRetail, 2, '.', ''), number_format($totalFinal, 2, '.', '')]);
             $orderId = (int)$db->lastInsertId();
 

@@ -20,6 +20,8 @@ RewriteEngine On
 RewriteRule ^api/1c/v1/stocks/?$ api/1c/v1/stocks.php [END,QSA]
 RewriteRule ^api/1c/v1/promotions/?$ api/1c/v1/promotions.php [END,QSA]
 RewriteRule ^api/1c/v1/users/?$ api/1c/v1/users.php [END,QSA]
+RewriteRule ^api/1c/v1/orders/?$ api/1c/v1/orders.php [END,QSA]
+RewriteRule ^api/1c/v1/order-status/?$ api/1c/v1/order-status.php [END,QSA]
 
 # Старый адрес каталога перенаправляем на главную сайта.
 # Работают оба варианта: /catalog и /catalog/

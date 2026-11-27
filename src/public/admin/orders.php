@@ -18,7 +18,7 @@ function ordersMoney(mixed $value): string
 }
 function ordersStatusLabel(string $status): string
 {
-    return $status === '' ? 'Новый · ожидает 1С' : $status;
+    return $status === 'Новый' ? 'Новый' : $status;
 }
 function ordersUrl(array $params): string
 {
@@ -35,7 +35,7 @@ try {
     error_log('Unable to inspect order_items columns: ' . $e->getMessage());
 }
 
-$allowedStatuses = ['', 'Получен', 'Отправлен', 'Согласован', 'Закрыт'];
+$allowedStatuses = ['Новый', 'Получен', 'В работе', 'Согласован', 'На выполнении', 'Отправлен', 'Закрыт'];
 $status = (string)($_GET['status'] ?? '');
 if ($status !== '__all' && !in_array($status, $allowedStatuses, true)) $status = '__all';
 $q = trim((string)($_GET['q'] ?? ''));
@@ -69,7 +69,7 @@ $listStmt = $db->prepare("SELECT o.id, o.user_id, o.phone, o.name, o.comment, o.
         (SELECT COUNT(*) FROM order_items oi WHERE oi.order_id = o.id) AS line_count,
         (SELECT COALESCE(SUM(oi.quantity), 0) FROM order_items oi WHERE oi.order_id = o.id) AS item_count
     FROM orders o{$where}
-    ORDER BY CASE WHEN o.status = '' THEN 0 ELSE 1 END, o.created_at DESC, o.id DESC
+    ORDER BY CASE WHEN o.status = 'Новый' THEN 0 ELSE 1 END, o.created_at DESC, o.id DESC
     LIMIT ? OFFSET ?");
 foreach ($params as $i => $value) $listStmt->bindValue($i + 1, $value, PDO::PARAM_STR);
 $listStmt->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT);
@@ -94,7 +94,7 @@ if ($viewId) {
     }
 }
 
-$statusCounts = ['' => 0, 'Получен' => 0, 'Отправлен' => 0, 'Согласован' => 0, 'Закрыт' => 0];
+$statusCounts = ['Новый' => 0, 'Получен' => 0, 'В работе' => 0, 'Согласован' => 0, 'На выполнении' => 0, 'Отправлен' => 0, 'Закрыт' => 0];
 try {
     foreach ($db->query('SELECT status, COUNT(*) AS amount FROM orders GROUP BY status')->fetchAll(PDO::FETCH_ASSOC) as $row) {
         $key = (string)$row['status'];
@@ -113,7 +113,7 @@ require __DIR__ . '/../templates/header.php';
     </div>
 
     <div class="admin-orders__summary" aria-label="Заказы по статусам">
-        <a class="admin-orders__count" href="<?= ordersH(ordersUrl(['status' => '', 'q' => $q])) ?>"><span>Новые · ждут 1С</span><strong><?= (int)$statusCounts[''] ?></strong></a>
+        <a class="admin-orders__count" href="<?= ordersH(ordersUrl(['status' => 'Новый', 'q' => $q])) ?>"><span>Новые</span><strong><?= (int)$statusCounts['Новый'] ?></strong></a>
         <a class="admin-orders__count" href="<?= ordersH(ordersUrl(['status' => 'Получен', 'q' => $q])) ?>"><span>Получены</span><strong><?= (int)$statusCounts['Получен'] ?></strong></a>
         <a class="admin-orders__count" href="<?= ordersH(ordersUrl(['status' => 'Согласован', 'q' => $q])) ?>"><span>Согласованы</span><strong><?= (int)$statusCounts['Согласован'] ?></strong></a>
     </div>
@@ -132,7 +132,7 @@ require __DIR__ . '/../templates/header.php';
                 <div><span>Покупатель</span><strong><?= ordersH($selectedOrder['name'] ?: '—') ?></strong></div>
                 <div><span>Телефон</span><strong><a href="tel:<?= ordersH($selectedOrder['phone']) ?>"><?= ordersH($selectedOrder['phone']) ?></a></strong></div>
                 <div><span>Дата</span><strong><?= ordersH($selectedOrder['created_at']) ?></strong></div>
-                <div><span>Статус</span><strong class="admin-orders__status admin-orders__status--<?= $selectedOrder['status'] === '' ? 'new' : 'other' ?>"><?= ordersH(ordersStatusLabel((string)$selectedOrder['status'])) ?></strong></div>
+                <div><span>Статус</span><strong class="admin-orders__status admin-orders__status--<?= $selectedOrder['status'] === 'Новый' ? 'new' : 'other' ?>"><?= ordersH(ordersStatusLabel((string)$selectedOrder['status'])) ?></strong></div>
             </div>
             <?php if (!empty($selectedOrder['comment'])): ?><div class="admin-orders__comment"><strong>Комментарий покупателя:</strong><p><?= nl2br(ordersH($selectedOrder['comment'])) ?></p></div><?php endif; ?>
 
@@ -187,7 +187,7 @@ require __DIR__ . '/../templates/header.php';
                     <td><a href="tel:<?= ordersH($order['phone']) ?>"><?= ordersH($order['phone']) ?></a></td>
                     <td><?= (int)$order['line_count'] ?> поз. / <?= (int)$order['item_count'] ?> шт.</td>
                     <td><strong><?= ordersMoney($order['total_final']) ?></strong></td>
-                    <td><span class="admin-orders__status admin-orders__status--<?= $order['status'] === '' ? 'new' : 'other' ?>"><?= ordersH(ordersStatusLabel((string)$order['status'])) ?></span></td>
+                    <td><span class="admin-orders__status admin-orders__status--<?= $order['status'] === 'Новый' ? 'new' : 'other' ?>"><?= ordersH(ordersStatusLabel((string)$order['status'])) ?></span></td>
                     <td><a class="btn btn--small" href="<?= ordersH(ordersUrl(['status' => $status, 'q' => $q, 'page' => $page, 'view' => (int)$order['id']])) ?>">Просмотр</a></td>
                 </tr>
             <?php endforeach; ?>
